@@ -23,7 +23,8 @@ logger.setLevel(logging.INFO)
 # =====================
 # Load environment variables
 # =====================
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parents[2]  # /api
+load_dotenv(BASE_DIR / ".env")
 
 
 class CredentialService:

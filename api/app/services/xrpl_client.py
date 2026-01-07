@@ -6,7 +6,12 @@ from xrpl.clients import JsonRpcClient
 from xrpl.wallet import Wallet
 from xrpl.transaction import submit_and_wait
 
-load_dotenv()
+
+# =====================
+# Load environment variables
+# =====================
+BASE_DIR = Path(__file__).resolve().parents[2]  # /api
+load_dotenv(BASE_DIR / ".env")
 
 
 class XRPLClientError(Exception):
