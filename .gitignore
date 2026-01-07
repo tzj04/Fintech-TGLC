@@ -17,6 +17,9 @@ pip-delete-this-directory.txt
 .env.*.local
 *.env
 
+# Virtual Environment variables
+api/.venv/
+
 # IDEs
 .vscode/
 .idea/

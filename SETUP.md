@@ -16,13 +16,18 @@ Trust-Gated Liquidity Corridors - a platform enabling banks to issue credentials
 
 ```powershell
 git clone <repository-url>
-cd Fintech26
+cd Fintech-TGLC
 ```
 
 ### 2. Backend Setup
 
 ```powershell
 cd api
+
+# (Recommended) Create and activate virtual environment, skip if not using a virual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
 pip install -r requirements.txt
 copy .env.example .env
 ```
@@ -35,6 +40,7 @@ python scripts/init_ledger.py
 ```
 
 Output will show:
+
 ```
 ISSUER_SEED=sXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 Issuer Address: rXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -42,7 +48,14 @@ Issuer Address: rXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 ### 4. Configure Backend
 
-Edit `api/.env` and paste the ISSUER_SEED:
+The `.env.example` file contains all required backend environment variables
+with safe defaults. Copying it ensures no variables are missing at runtime.
+
+You must manually set:
+
+- ISSUER_SEED
+- XRPL_NETWORK (if not using default)
+
 ```
 ISSUER_SEED=sXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
@@ -67,6 +80,7 @@ copy .env.local.example .env.local
 ```
 
 Edit `web/.env.local` and add the Issuer Address:
+
 ```
 NEXT_PUBLIC_ISSUER_ADDRESS=rXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
@@ -87,10 +101,13 @@ Frontend: http://localhost:3000
 ## API Endpoints
 
 ### Health
+
 - `GET /health` - System status
 
 ### Credentials
+
 - `POST /credentials/issue` - Issue credential token
+
 ```json
 {
   "principal_address": "rXXX...",
@@ -100,7 +117,9 @@ Frontend: http://localhost:3000
 ```
 
 ### Liquidity
+
 - `POST /liquidity/request` - Request liquidity
+
 ```json
 {
   "principal_did": "did:xrpl:...",
@@ -111,6 +130,7 @@ Frontend: http://localhost:3000
 ```
 
 - `POST /liquidity/verify-proof` - Verify performance proof
+
 ```json
 {
   "metrics": {
@@ -152,26 +172,32 @@ tglc/
 ## Environment Variables
 
 **Backend (api/.env):**
+
 - `ISSUER_SEED` - Secret key (from init_ledger.py)
 - `XRPL_NETWORK` - "testnet" or "mainnet"
 
 **Frontend (web/.env.local):**
+
 - `NEXT_PUBLIC_ISSUER_ADDRESS` - Public address (from init_ledger.py)
 - `NEXT_PUBLIC_XRPL_NETWORK` - "testnet" or "mainnet"
 
 ## Troubleshooting
 
 **Linter errors about xrpl imports:**
+
 - Run `pip install -r requirements.txt` from `api/` directory
 - Restart your IDE
 
 **Missing ISSUER_SEED:**
+
 - Run `python scripts/init_ledger.py` from project root
 
 **Port already in use:**
+
 - Change ports in `.env` files or stop other services
 
 **Note on Virtual Environments:**
+
 - Venv is optional for local development
 - If you use venv: `python -m venv venv` then `.\venv\Scripts\activate`
 - To exit venv: type `deactivate` or close terminal
