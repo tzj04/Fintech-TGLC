@@ -3,11 +3,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useWallet } from '@/lib/use-wallet';
+// import { useRouter } from 'next/router';
 
 interface TransactionStatus {
   type?: string;
   status: 'pending' | 'success' | 'error';
 }
+
+
 
 interface NavigationContextType {
   userRole: 'agent' | 'borrower';
@@ -38,12 +41,14 @@ export const NavigationProvider = ({ children }: { children: React.ReactNode }) 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [transactionInProgress, setTransactionInProgress] = useState(false);
   const [transactionStatus, setTransactionStatus] = useState<TransactionStatus | null>(null);
+  // const [router, SetRouter] = useState<any>(null)
 
   useEffect(() => {
     const savedRole = localStorage.getItem('defiloan_user_role');
     if (savedRole === 'agent' || savedRole === 'borrower') {
       setUserRole(savedRole);
     }
+    // SetRouter(useRouter())
   }, []);
 
   useEffect(() => {
@@ -55,7 +60,20 @@ export const NavigationProvider = ({ children }: { children: React.ReactNode }) 
   }, [pathname]);
 
   const toggleRole = () => {
-    setUserRole((prev) => (prev === 'agent' ? 'borrower' : 'agent'));
+  
+
+    setUserRole((prev) => {
+      const newRole = prev === 'agent' ? 'borrower' : 'agent';
+      // if (newRole === "agent") {
+      //     router.push("/agent-dashboard")
+      // }
+      // else {
+      //   router.push("/borrow-dashboard")
+      // }
+
+      return newRole;
+    });
+    
   };
 
   const startTransaction = (type: string) => {

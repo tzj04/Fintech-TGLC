@@ -9,6 +9,8 @@ import UpcomingPaymentsWidget from './components/UpcomingPaymentsWidget';
 import ImprovementRecommendations from './components/ImprovementRecommendations';
 import AppIcon from '@/components/AppIcon';
 import { useWallet } from '@/lib/use-wallet';
+import { useEffect } from 'react';
+import { useNavigation } from '@/context/NavigationContext';
 
 const MOCK_CREDIT = { score: 720, rating: 'Good', trend: 'up' as const };
 
@@ -57,6 +59,12 @@ const STATS = [
 export default function BorrowerDashboard() {
   const router = useRouter();
   const { isConnected, address } = useWallet();
+
+  const { userRole } = useNavigation();
+   useEffect(() => {
+      router.push(userRole === 'agent' ? '/agent-dashboard' : '/borrower-dashboard');
+    }, [router, userRole]);
+  
 
   return (
     <div className="min-h-screen bg-background pt-16">

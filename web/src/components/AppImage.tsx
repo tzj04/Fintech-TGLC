@@ -2,12 +2,12 @@ import React from 'react';
 import Image from 'next/image';
 
 interface AppImageProps {
-  src: string;
+  src: string;        
   alt?: string;
   className?: string;
   width?: number;
   height?: number;
-  [key: string]: any;
+  [key: string]: any; 
 }
 
 export default function AppImage({
@@ -18,6 +18,10 @@ export default function AppImage({
   height,
   ...props
 }: AppImageProps) {
+  if(!src || src.trim() === ""){
+    return null;
+  }
+
   if (src?.startsWith('http') || src?.startsWith('/')) {
     return (
       <img

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import PortfolioSummaryCard from './components/PortfolioSummary';
 import FilterBar from './components/FilterBar';
@@ -9,6 +9,7 @@ import RecentActivityCard from './components/RecentActivityCard';
 import QuickActionButton from './components/QuickActionButton';
 import AppIcon from '@/components/AppIcon';
 import { useWallet } from '@/lib/use-wallet';
+import { useNavigation } from '@/context/NavigationContext';
 
 const MOCK_LOANS = [
   { id: 'loan_001', borrowerName: 'John Doe', borrowerId: 'BOR-001', borrowerAvatar: '', borrowerAvatarAlt: 'John Doe', creditRating: 'good', amount: '$5,000', interestRate: '8.5%', status: 'current', remainingTerm: '12 months', nextPayment: 'Jan 15, 2026' },
@@ -39,6 +40,14 @@ export default function AgentDashboard() {
   const { isConnected, address } = useWallet();
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const { userRole } = useNavigation();
+
+   useEffect(() => {
+      router.push(userRole === 'agent' ? '/agent-dashboard' : '/borrower-dashboard');
+    }, [router, userRole]);
+  
+
+
 
   const filteredLoans = MOCK_LOANS.filter((loan) => {
     if (activeFilter !== 'all' && loan.status !== activeFilter) return false;

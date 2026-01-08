@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import AppIcon from '@/components/AppIcon';
-import { Checkbox } from '@/components/ui/Checkbox';
+// import { Checkbox } from '@/components/ui/Checkbox';
+import { Checkbox } from '@/components/ui';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 
