@@ -53,9 +53,8 @@ async def request_liquidity(req: LiquidityRequest):
         # Step 1: Verify proof data (optional)
         proof_result = {}
         if req.proof_data:
-            proof_obj = ProofPayload(**req.proof_data.model_dump())
             verifier = ProofVerifier()
-            proof_result = await run_in_threadpool(verifier.verify, proof_obj)
+            proof_result = await run_in_threadpool(verifier.verify, req.proof_data)
 
         # Step 2: Business prepares liquidity request
         business_agent = BusinessAgent(
