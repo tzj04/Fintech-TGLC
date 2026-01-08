@@ -1,24 +1,11 @@
 "use client";
-"use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useWallet } from "@/lib/use-wallet";
+import { Button, Input } from "./ui";
 import { apiClient, type CreditScore, type LiquidityRequest } from "@/lib/api";
-import { useWallet } from "@/lib/use-wallet";
-import { Button, Input } from "./ui";
-import { useState, useEffect, useCallback } from "react";
-import {
-  apiClient,
-  type CreditScore,
-  type LiquidityRequest,
-  type LiquidityRequestResponse,
-} from "@/lib/api";
-import { useWallet } from "@/lib/use-wallet";
-import { Button, Input } from "./ui";
 
 const NETWORK_EXPLORER_URLS = {
-  mainnet: "https://xrpl.org/transactions/",
-  testnet: "https://testnet.xrpl.org/transactions/",
-  devnet: "https://testnet.xrpl.org/transactions/",
   mainnet: "https://xrpl.org/transactions/",
   testnet: "https://testnet.xrpl.org/transactions/",
   devnet: "https://testnet.xrpl.org/transactions/",
@@ -26,8 +13,6 @@ const NETWORK_EXPLORER_URLS = {
 
 export function LiquidityForm() {
   const { isConnected, address: walletAddress } = useWallet();
-  const [address, setAddress] = useState("");
-  const [amount, setAmount] = useState("");
   const [address, setAddress] = useState("");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
