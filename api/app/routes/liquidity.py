@@ -24,18 +24,6 @@ router = APIRouter(tags=["Liquidity"])
 DEFAULT_ESCROW_DAYS = 30  # Repayment deadline (not when funds are available)
 MAX_XRP_AMOUNT = 1_000_000_000
 
-# XRPL Explorer URLs by network
-EXPLORER_URLS = {
-    "mainnet": "https://xrpl.org/transactions/",
-    "testnet": "https://testnet.xrpl.org/transactions/",
-    "devnet": "https://testnet.xrpl.org/transactions/",
-}
-
-# Get network from environment (default to testnet)
-import os
-XRPL_NETWORK = os.getenv("XRPL_NETWORK", "testnet")
-EXPLORER_BASE_URL = EXPLORER_URLS.get(XRPL_NETWORK, EXPLORER_URLS["testnet"])
-
 # -------------------
 # Pydantic Models
 # -------------------
@@ -163,45 +151,20 @@ async def request_liquidity(req: LiquidityRequest):
             
             # Submit the escrow immediately
             prepared_tx = await run_in_threadpool(autofill, escrow_tx, xrpl_client.client)
-            try:
-                # Try to submit using the bank's wallet if available, otherwise use platform wallet
-                bank_wallet = xrpl_client._wallet
-                response = await run_in_threadpool(xrpl_client.submit, prepared_tx, bank_wallet)
-                tx_hash = response.get("hash")
-                transaction_url = f"{EXPLORER_BASE_URL}{tx_hash}" if tx_hash else None
-                logger.info(f"Escrow created with matched bank: {tx_hash}")
-                
-                return {
-                    "status": "approved",
-                    "tx_hash": tx_hash,
-                    "amount_xrp": req.amount_xrp,
-                    "credit": eligibility["credit"],
-                    "unlock_timestamp": unlock_timestamp,
-                    "matched_bank": {
-                        "name": best_bank["bank_name"],
-                        "wallet": best_bank["wallet_address"]
-                    },
-                    "transaction_url": transaction_url,
-                    "explorer_url": transaction_url,
-                    "message": f"Matched with {best_bank['bank_name']} and escrow created successfully. View receipt: {transaction_url}"
-                }
-            except Exception as e:
-                # If submission fails, return prepared transaction for manual signing
-                logger.warning(f"Failed to auto-submit escrow, returning prepared transaction: {e}")
-                tx_dict = prepared_tx.to_dict()
-                return {
-                    "status": "matched",
-                    "transaction": tx_dict,
-                    "amount_xrp": req.amount_xrp,
-                    "credit": eligibility["credit"],
-                    "unlock_timestamp": unlock_timestamp,
-                    "matched_bank": {
-                        "name": best_bank["bank_name"],
-                        "wallet": best_bank["wallet_address"]
-                    },
-                    "explorer_url_template": EXPLORER_BASE_URL + "{tx_hash}",
-                    "message": f"Matched with {best_bank['bank_name']}. Escrow transaction prepared for signing. After signing, view at: {EXPLORER_BASE_URL}<tx_hash>"
-                }
+            tx_dict = prepared_tx.to_dict()
+            
+            return {
+                "status": "matched",
+                "transaction": tx_dict,
+                "amount_xrp": req.amount_xrp,
+                "credit": eligibility["credit"],
+                "unlock_timestamp": unlock_timestamp,
+                "matched_bank": {
+                    "name": best_bank["bank_name"],
+                    "wallet": best_bank["wallet_address"]
+                },
+                "message": f"Matched with {best_bank['bank_name']}. Escrow transaction prepared for bank signing."
+            }
         else:
             # Fallback to platform wallet if no banks match
             logger.info("No banks matched, using platform wallet fallback")
@@ -220,17 +183,13 @@ async def request_liquidity(req: LiquidityRequest):
             tx_hash = response.get("hash")
             logger.info(f"Escrow created directly: {tx_hash}")
             
-            transaction_url = f"{EXPLORER_BASE_URL}{tx_hash}" if tx_hash else None
-            
             return {
                 "status": "approved",
                 "tx_hash": tx_hash,
                 "amount_xrp": req.amount_xrp,
                 "credit": eligibility["credit"],
                 "unlock_timestamp": unlock_timestamp,
-                "transaction_url": transaction_url,
-                "explorer_url": transaction_url,
-                "message": f"Escrow created successfully. Funds will be available after unlock time. View receipt: {transaction_url}"
+                "message": "Escrow created successfully. Funds will be available after unlock time."
             }
 
     except HTTPException:
