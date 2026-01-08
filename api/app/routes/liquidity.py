@@ -1,19 +1,14 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
-import re
 import logging
 from ..services.proof_verifier import ProofVerifier
 from ..agent.bot import AgentBot
+from ..utils.validators import validate_xrpl_address
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/liquidity", tags=["liquidity"])
-
-def validate_xrpl_address(address: str) -> str:
-    if not re.match(r'^r[1-9A-HJ-NP-Za-km-z]{25,34}$', address):
-        raise ValueError("Invalid XRPL address format")
-    return address
 
 class ProofPayload(BaseModel):
     metrics: dict
@@ -33,10 +28,12 @@ class LiquidityRequest(BaseModel):
 async def request_liquidity(req: LiquidityRequest):
     try:
         verifier = ProofVerifier()
-        proof_result = await run_in_threadpool(
-            verifier.verify,
-            req.proof_data
-        )
+        proof_result = None
+        if req.proof_data:
+            proof_result = await run_in_threadpool(
+                verifier.verify,
+                req.proof_data.model_dump() if hasattr(req.proof_data, 'model_dump') else req.proof_data
+            )
         
         # NOTE:
         # BackgroundTasks is used as a temporary async mechanism.

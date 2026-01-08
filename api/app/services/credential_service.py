@@ -3,16 +3,15 @@
 from xrpl.wallet import Wallet
 from xrpl.models.transactions import TrustSet
 from xrpl.models.amounts import IssuedCurrencyAmount
-from xrpl.transaction import submit_and_wait
+from xrpl.transaction import submit_and_wait, autofill
 from xrpl.clients import JsonRpcClient
 from .xrpl_client import XRPLClient
+from ..utils.validators import validate_xrpl_address, validate_amount, validate_currency
 
 from dotenv import load_dotenv
 from pathlib import Path
 import os
 import logging
-import decimal
-import re
 
 # =====================
 # Setup logging
@@ -36,36 +35,14 @@ class CredentialService:
         self.issuer_wallet = Wallet.from_seed(seed)
         logger.info(f"Issuer wallet loaded: {self.issuer_wallet.classic_address}")
 
-    # =====================
-    # Validation helpers
-    # =====================
-    @staticmethod
-    def validate_address(address: str):
-        if not isinstance(address, str) or not address.startswith("r") or len(address) < 25:
-            raise ValueError(f"Invalid XRPL address: {address}")
-
-    @staticmethod
-    def validate_amount(amount: str):
-        try:
-            val = decimal.Decimal(amount)
-            if val <= 0:
-                raise ValueError
-        except:
-            raise ValueError(f"Invalid amount: {amount}")
-
-    @staticmethod
-    def validate_currency(currency: str):
-        if not isinstance(currency, str) or not re.fullmatch(r"[A-Z0-9]{3,40}", currency):
-            raise ValueError(f"Invalid XRPL issued currency: {currency}")
 
     # =====================
     # Prepare a TrustSet transaction (unsigned)
     # =====================
     def create_trust_set(self, principal_address: str, amount: str = "1000000", currency: str = "CORRIDOR_ELIGIBLE") -> dict:
-        # Validation
-        self.validate_address(principal_address)
-        self.validate_amount(amount)
-        self.validate_currency(currency)
+        validate_xrpl_address(principal_address)
+        validate_amount(amount)
+        validate_currency(currency)
 
         tx = TrustSet(
             account=principal_address,
@@ -77,7 +54,7 @@ class CredentialService:
         )
 
         # Autofill (sequence, fee, lastLedgerSequence)
-        prepared_tx = self.xrpl_client.autofill(tx)
+        prepared_tx = autofill(tx, self.xrpl_client)
         logger.info(f"Prepared TrustSet transaction for {principal_address}")
 
         return {
@@ -89,9 +66,9 @@ class CredentialService:
     # Sign and submit TrustSet transaction
     # =====================
     def submit_trust_set(self, principal_address: str, amount: str = "1000000", currency: str = "CORRIDOR_ELIGIBLE") -> dict:
-        self.validate_address(principal_address)
-        self.validate_amount(amount)
-        self.validate_currency(currency)
+        validate_xrpl_address(principal_address)
+        validate_amount(amount)
+        validate_currency(currency)
 
         tx = TrustSet(
             account=principal_address,
@@ -103,9 +80,41 @@ class CredentialService:
         )
 
         try:
-            response = submit_and_wait(tx, self.xrpl_client, self.issuer_wallet)
-            logger.info(f"TrustSet submitted successfully for {principal_address}. Hash: {response.result.get('hash')}")
-            return response.result
-        except Exception as e:
-            logger.error(f"Failed to submit TrustSet for {principal_address}: {e}")
+            from xrpl.models.requests import AccountInfo
+            
+            account_info_req = AccountInfo(account=principal_address, ledger_index="validated")
+            account_info = self.xrpl_client.request(account_info_req)
+            
+            if "error" in account_info.result:
+                error_code = account_info.result.get("error")
+                if error_code == "actNotFound":
+                    raise ValueError(f"Principal account {principal_address} does not exist or is not funded. Please fund the account first using the XRPL testnet faucet: https://xrpl.org/xrp-testnet-faucet.html")
+            
+            if "status" in account_info.result and account_info.result["status"] == "error":
+                error_code = account_info.result.get("error_code")
+                if error_code == "actNotFound":
+                    raise ValueError(f"Principal account {principal_address} does not exist or is not funded. Please fund the account first using the XRPL testnet faucet: https://xrpl.org/xrp-testnet-faucet.html")
+            
+            prepared_tx = autofill(tx, self.xrpl_client)
+            logger.info(f"Prepared TrustSet transaction for {principal_address}")
+            
+            tx_dict = prepared_tx.to_dict()
+            return {
+                "transaction": tx_dict,
+                "issuer": self.issuer_wallet.classic_address,
+                "status": "prepared",
+                "message": "Transaction prepared successfully. Principal must sign and submit this transaction."
+            }
+        except ValueError:
             raise
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Failed to prepare TrustSet for {principal_address}: {error_msg}", exc_info=True)
+            
+            if "actNotFound" in error_msg or "account not found" in error_msg.lower() or "rpcACT_NOT_FOUND" in error_msg:
+                raise ValueError(f"Principal account {principal_address} does not exist or is not funded. Please fund the account first using the XRPL testnet faucet: https://xrpl.org/xrp-testnet-faucet.html")
+            
+            if "sequence" in error_msg.lower() or "autofill" in error_msg.lower():
+                raise ValueError(f"Failed to prepare transaction. Account may not be funded. Error: {error_msg}")
+            
+            raise ValueError(f"Failed to prepare transaction: {error_msg}")
