@@ -9,12 +9,14 @@ export function LiquidityForm() {
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setResult(null);
+    setTxHash(null);
     setError(null);
 
     try {
@@ -23,7 +25,13 @@ export function LiquidityForm() {
         principal_address: address,
         amount_xrp: parseFloat(amount),
       });
-      setResult(`Request submitted. Status: ${response.status}. Proof verified: ${response.proof_verified ?? 'N/A'}`);
+      
+      if (response.status === 'approved' && response.tx_hash) {
+        setResult(`Approved! Escrow created: ${response.amount_xrp} XRP`);
+        setTxHash(response.tx_hash);
+      } else {
+        setResult(`Status: ${response.status}${response.reason ? ` - ${response.reason}` : ''}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to request liquidity');
     } finally {
@@ -85,6 +93,18 @@ export function LiquidityForm() {
         {result && (
           <div className="text-sm text-green-600 dark:text-green-400 p-2 bg-green-50 dark:bg-green-900/20 rounded">
             {result}
+            {txHash && (
+              <div className="mt-2">
+                <a
+                  href={`https://testnet.xrpl.org/transactions/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:opacity-80 break-all"
+                >
+                  {txHash}
+                </a>
+              </div>
+            )}
           </div>
         )}
         {error && (

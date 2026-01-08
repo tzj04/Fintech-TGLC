@@ -21,7 +21,9 @@ export interface CredentialIssueResponse {
 
 export interface LiquidityRequestResponse {
   status: string;
-  proof_verified: boolean | null;
+  tx_hash?: string;
+  amount_xrp?: number;
+  reason?: string;
 }
 
 export interface ProofVerificationResponse {

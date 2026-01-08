@@ -132,8 +132,8 @@ The platform needs to be accessible and observable in production.
 | Task | Dev | Status |
 |------|-----|--------|
 | Fix credential submission | A | |
-| Fix escrow submission | B | |
-| Fix liquidity response | C | |
+| Fix escrow submission | B |✅|
+| Fix liquidity response | C |✅|
 
 ### Phase 2: Credential Lifecycle
 | Task | Dev | Status |

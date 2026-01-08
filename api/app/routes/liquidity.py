@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 import re
@@ -26,24 +26,25 @@ class LiquidityRequest(BaseModel):
         return validate_xrpl_address(v)
 
 @router.post("/request")
-async def request_liquidity(req: LiquidityRequest, background_tasks: BackgroundTasks):
+async def request_liquidity(req: LiquidityRequest):
     try:
         verifier = ProofVerifier()
         proof_result = verifier.verify(req.proof_data) if req.proof_data else None
         
         agent = AgentBot()
-        background_tasks.add_task(
-            agent.evaluate,
+        result = agent.evaluate(
             req.principal_did,
             req.principal_address,
             req.amount_xrp,
             proof_result
         )
         
-        return {
-            "status": "processing",
-            "proof_verified": proof_result.get("valid") if proof_result else None
-        }
+        if result.get("status") == "rejected":
+            raise HTTPException(status_code=400, detail=result.get("reason", "Request rejected"))
+        
+        return result
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
