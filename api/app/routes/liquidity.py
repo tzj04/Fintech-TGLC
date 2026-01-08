@@ -11,7 +11,10 @@ from ..services.credit_service import CreditService
 from ..services.escrow_service import EscrowService
 from ..services.bank_service import BankService
 from ..services.xrpl_client import XRPLClient
+from ..services.policy_engine import PolicyEngine
 from ..models.proof import ProofPayload as ProofPayloadModel
+from ..models.exposure_state import ExposureState
+from ..agent.bank_agent import BankAgent
 from ..utils.validators import validate_xrpl_address
 
 from xrpl.transaction import autofill, submit_and_wait
@@ -154,32 +157,77 @@ async def request_liquidity(req: LiquidityRequest):
             best_bank = matching_banks[0]
             logger.info(f"Matched with bank: {best_bank['bank_name']} ({best_bank['wallet_address']})")
             
-            escrow_tx = EscrowCreate(
-                account=best_bank["wallet_address"],
-                destination=req.principal_address,
-                amount=xrp_to_drops(req.amount_xrp),
-                finish_after=unlock_timestamp
-            )
-            
-            # Prepare the escrow transaction
-            prepared_tx = await run_in_threadpool(autofill, escrow_tx, xrpl_client.client)
-            tx_dict = prepared_tx.to_dict()
-            
-            # Return prepared transaction for bank to sign with their wallet
-            logger.info(f"Prepared escrow for bank {best_bank['bank_name']} to sign and submit")
-            return {
-                "status": "matched",
-                "transaction": tx_dict,
-                "amount_xrp": req.amount_xrp,
-                "credit": eligibility["credit"],
-                "unlock_timestamp": unlock_timestamp,
-                "matched_bank": {
-                    "name": best_bank["bank_name"],
-                    "wallet": best_bank["wallet_address"]
-                },
-                "explorer_url_template": f"{EXPLORER_BASE_URL}{{tx_hash}}",
-                "message": f"Matched with {best_bank['bank_name']}. Transaction prepared. {best_bank['bank_name']} must sign and submit, then share the explorer URL."
-            }
+            try:
+                # Create BankAgent with necessary dependencies
+                proof_verifier = ProofVerifier()
+                policy_engine = PolicyEngine()
+                exposure_state = ExposureState()
+                bank_agent = BankAgent(
+                    proof_verifier=proof_verifier,
+                    policy_engine=policy_engine,
+                    exposure_state=exposure_state,
+                    xrpl_client=xrpl_client,
+                    bank_service=bank_svc
+                )
+                
+                # Create a liquidity request object for the agent
+                class LiqReqObj:
+                    def __init__(self):
+                        self.credentials = req.proof_data or {}
+                        self.business_id = req.principal_address
+                        self.amount = req.amount_xrp
+                        self.unlock_time = datetime.fromtimestamp(unlock_timestamp, tz=timezone.utc)
+                        self.selected_bank = best_bank
+                
+                liquidity_req_obj = LiqReqObj()
+                
+                # Agent submits the escrow
+                decision = await run_in_threadpool(bank_agent.act, liquidity_req_obj)
+                
+                if decision.approved:
+                    logger.info(f"Escrow approved and submitted by {best_bank['bank_name']}")
+                    return {
+                        "status": "approved",
+                        "amount_xrp": req.amount_xrp,
+                        "credit": eligibility["credit"],
+                        "unlock_timestamp": unlock_timestamp,
+                        "matched_bank": {
+                            "name": best_bank["bank_name"],
+                            "wallet": best_bank["wallet_address"]
+                        },
+                        "message": f"Escrow submitted successfully by {best_bank['bank_name']}. Funds locked until {datetime.fromtimestamp(unlock_timestamp, tz=timezone.utc).isoformat()}"
+                    }
+                else:
+                    logger.warning(f"Escrow rejected by agent: {decision.reason}")
+                    return {
+                        "status": "rejected",
+                        "reason": decision.reason or "Bank rejected liquidity request",
+                        "credit": eligibility["credit"]
+                    }
+            except Exception as e:
+                logger.error(f"BankAgent submission failed: {e}", exc_info=True)
+                # Fallback: return prepared transaction
+                escrow_tx = EscrowCreate(
+                    account=best_bank["wallet_address"],
+                    destination=req.principal_address,
+                    amount=xrp_to_drops(req.amount_xrp),
+                    finish_after=unlock_timestamp
+                )
+                prepared_tx = await run_in_threadpool(autofill, escrow_tx, xrpl_client.client)
+                tx_dict = prepared_tx.to_dict()
+                
+                return {
+                    "status": "matched",
+                    "transaction": tx_dict,
+                    "amount_xrp": req.amount_xrp,
+                    "credit": eligibility["credit"],
+                    "unlock_timestamp": unlock_timestamp,
+                    "matched_bank": {
+                        "name": best_bank["bank_name"],
+                        "wallet": best_bank["wallet_address"]
+                    },
+                    "message": f"Matched with {best_bank['bank_name']}. Agent submission failed, transaction prepared for manual signing."
+                }
         else:
             # No banks matched - return error with details
             logger.info("No banks matched for this request")
