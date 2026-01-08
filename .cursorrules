@@ -9,19 +9,174 @@
 - Backend: fastapi, uvicorn, xrpl-py, python-dotenv, pydantic
 - Frontend: next, react, xrpl, xrpl-connect, zustand, lucide-react, clsx, tailwind-merge
 
-## XRPL SDK Patterns
-- Use `Client` with WebSocket URLs (wss://)
-- Use `client.fundWallet()` for testnet wallet creation
-- Use `client.submitAndWait(tx, { autofill: true, wallet })` for transactions
-- Use `xrpToDrops()` for XRP amount conversion
+## XRPL Networks
+- Testnet WS: wss://s.altnet.rippletest.net:51233
+- Testnet RPC: https://s.altnet.rippletest.net:51234
+- Devnet WS: wss://s.devnet.rippletest.net:51233
+- Devnet RPC: https://s.devnet.rippletest.net:51234
+- Mainnet WS: wss://xrplcluster.com/
+- Mainnet RPC: https://xrplcluster.com/
+- Configure via XRPL_NETWORK env var (mainnet/testnet/devnet)
+
+## JavaScript (xrpl.js) Patterns
+
+### Client & Wallet
+```javascript
+const { Client, Wallet, xrpToDrops, dropsToXrp, isoTimeToRippleTime } = require('xrpl');
+const client = new Client('wss://s.altnet.rippletest.net:51233');
+await client.connect();
+
+// Wallet operations
+const { wallet } = await client.fundWallet();           // Testnet funded wallet
+const wallet = Wallet.fromSeed(seed);                   // From seed
+const wallet = Wallet.generate();                       // New wallet
+```
+
+### Transactions (ALWAYS use this pattern)
+```javascript
+const response = await client.submitAndWait(tx, {
+  autofill: true,
+  wallet: wallet
+});
+const txResult = response.result.meta.TransactionResult; // 'tesSUCCESS'
+```
+
+### Common Transactions
+```javascript
+// Payment
+{ TransactionType: 'Payment', Account, Destination, Amount: xrpToDrops(amount) }
+
+// TrustSet
+{ TransactionType: 'TrustSet', Account, LimitAmount: { currency, issuer, value } }
+
+// Escrow
+{ TransactionType: 'EscrowCreate', Account, Destination, Amount, FinishAfter, Condition }
+{ TransactionType: 'EscrowFinish', Account, Owner, OfferSequence, Condition, Fulfillment }
+
+// Token Payment (issued currency)
+{ TransactionType: 'Payment', Account, Destination, 
+  Amount: { currency: currencyHex, issuer, value } }
+```
+
+### Helpers
+```javascript
+// Currency code to 40-char hex
+const textToHex = (text) => Buffer.from(text, 'utf8').toString('hex').toUpperCase().padEnd(40, '0');
+
+// Account info
+const { result } = await client.request({ command: 'account_info', account, ledger_index: 'validated' });
+```
+
+## Python (xrpl-py) Patterns
+
+### Client & Wallet
+```python
+from xrpl.clients import JsonRpcClient
+from xrpl.wallet import Wallet, generate_faucet_wallet
+from xrpl.transaction import submit_and_wait
+from xrpl.utils import xrp_to_drops, datetime_to_ripple_time
+
+client = JsonRpcClient("https://s.altnet.rippletest.net:51234")
+wallet = generate_faucet_wallet(client)                 # Testnet funded
+wallet = Wallet.from_seed(seed)                         # From seed
+```
+
+### Transactions (ALWAYS use this pattern)
+```python
+from xrpl.transaction import submit_and_wait
+
+response = submit_and_wait(tx, client, wallet)
+# response.is_successful() or response.result['meta']['TransactionResult']
+```
+
+### Common Transaction Models
+```python
+from xrpl.models.transactions import Payment, TrustSet, EscrowCreate, EscrowFinish
+
+# Payment
+Payment(account=addr, destination=dest, amount=xrp_to_drops(1))
+
+# TrustSet
+TrustSet(account=addr, limit_amount={"currency": hex, "issuer": issuer, "value": "1000000"})
+
+# Escrow
+EscrowCreate(account=addr, destination=dest, amount=xrp_to_drops(1), 
+             finish_after=datetime_to_ripple_time(dt), condition=cond)
+EscrowFinish(account=addr, owner=owner, offer_sequence=seq, 
+             condition=cond, fulfillment=fulfill)
+```
+
+### Helpers
+```python
+def text_to_hex(text):
+    return text.encode('ascii').hex().upper().ljust(40, '0')
+```
+
+## Transaction Types Reference
+
+| Type | Purpose |
+|------|---------|
+| Payment | Send XRP or tokens |
+| TrustSet | Establish trust line |
+| EscrowCreate/Finish/Cancel | Conditional payments |
+| AMMCreate/Deposit/Withdraw | AMM liquidity |
+| MPTokenIssuanceCreate | Multi-purpose tokens |
+| MPTokenAuthorize | Authorize MPT holding |
+| CredentialCreate/Accept/Delete | On-chain credentials (XLS-70) |
+| PermissionedDomainSet/Delete | Permissioned domains (XLS-80) |
+| DepositPreauth | Deposit authorization |
+| AccountSet | Account flags |
+| Batch | Atomic multi-tx (XLS-56, Devnet) |
+
+## Crypto Conditions (Escrow)
+```javascript
+const cc = require('five-bells-condition');
+const crypto = require('crypto');
+
+const preimage = crypto.randomBytes(32);
+const fulfillment = new cc.PreimageSha256();
+fulfillment.setPreimage(preimage);
+
+const condition = fulfillment.getConditionBinary().toString('hex').toUpperCase();
+const fulfillment_hex = fulfillment.serializeBinary().toString('hex').toUpperCase();
+```
+
+## Production Best Practices
+
+### Error Handling
+- Always check `response.is_successful()` or `response.result.meta.TransactionResult === 'tesSUCCESS'`
+- Use try-catch blocks around transaction submissions
+- Log transaction hashes for debugging
+- Validate inputs before creating transactions
+
+### Security
+- Never expose private keys/seeds in code or logs
+- Use environment variables for sensitive data
+- Validate all addresses and amounts before transactions
+- Use validated ledger_index for queries
+
+### Performance
+- Use `submit_and_wait` for reliable transaction confirmation
+- Cache account info when possible
+- Use connection pooling for high-throughput scenarios
+- Monitor transaction fees and adjust accordingly
+
+### Network Selection
+- Use testnet/devnet for development and testing
+- Only use mainnet for production with real XRP
+- Always verify network configuration before deployment
+- Use environment variables for network selection
 
 ## Code Style
 - Minimal, no verbose comments
 - Python: type hints, PEP 8
 - TypeScript: strict mode, functional components
 - No markdown in code files
+- Use `submit_and_wait` (Python) or `submitAndWait` (JS) - NOT deprecated functions
+- Never use: `safe_sign_and_autofill_transaction`, `safe_sign_transaction`, `send_reliable_submission`
 
-## Environment
-- Testnet: wss://s.altnet.rippletest.net:51233
-- Mainnet: wss://xrplcluster.com/
-- Configure via XRPL_NETWORK env var
+## References
+- Official XRPL Docs: https://xrpl.org/
+- Scaffold-XRP: https://github.com/XRPL-Commons/scaffold-xrp
+- xrpl.js: https://js.xrpl.org/
+- xrpl-py: https://xrpl-py.readthedocs.io/
