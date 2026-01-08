@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 import os
 import logging
-from .routes import credentials, liquidity
+from .routes.router import router as api_router
 
 load_dotenv()
 
@@ -25,8 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(credentials.router)
-app.include_router(liquidity.router)
+app.include_router(api_router)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

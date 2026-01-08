@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 import re
@@ -14,11 +15,14 @@ def validate_xrpl_address(address: str) -> str:
         raise ValueError("Invalid XRPL address format")
     return address
 
+class ProofPayload(BaseModel):
+    metrics: dict
+
 class LiquidityRequest(BaseModel):
     principal_did: str = Field(..., min_length=10)
     principal_address: str = Field(..., min_length=25, max_length=35)
     amount_xrp: float = Field(..., gt=0, le=1000000000)
-    proof_data: Optional[dict] = None
+    proof_data: Optional[ProofPayload] = None
 
     @field_validator('principal_address')
     @classmethod
@@ -29,8 +33,14 @@ class LiquidityRequest(BaseModel):
 async def request_liquidity(req: LiquidityRequest):
     try:
         verifier = ProofVerifier()
-        proof_result = verifier.verify(req.proof_data) if req.proof_data else None
+        proof_result = await run_in_threadpool(
+            verifier.verify,
+            req.proof_data
+        )
         
+        # NOTE:
+        # BackgroundTasks is used as a temporary async mechanism.
+        # In production, this will be replaced with a durable task queue.
         agent = AgentBot()
         result = agent.evaluate(
             req.principal_did,
@@ -52,10 +62,6 @@ async def request_liquidity(req: LiquidityRequest):
         raise HTTPException(status_code=500, detail="Failed to process liquidity request")
 
 @router.post("/verify-proof")
-async def verify_proof(proof_data: dict):
-    try:
-        verifier = ProofVerifier()
-        return verifier.verify(proof_data)
-    except Exception as e:
-        logger.error(f"Proof verification failed: {e}", exc_info=True)
-        raise HTTPException(status_code=400, detail="Invalid proof data")
+async def verify_proof(proof_data: ProofPayload):
+    verifier = ProofVerifier()
+    return verifier.verify(proof_data.model_dump())
