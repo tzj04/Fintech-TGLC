@@ -2,7 +2,11 @@ import os
 import threading
 from pathlib import Path
 from dotenv import load_dotenv
+from datetime import datetime
 
+from xrpl.models.transactions import TrustSet
+from xrpl.models.requests import AccountInfo
+from xrpl.transaction import safe_sign_and_autofill_transaction
 from xrpl.clients import JsonRpcClient
 from xrpl.wallet import Wallet
 from xrpl.transaction import submit_and_wait
@@ -129,8 +133,6 @@ class XRPLClient:
         """
         Return basic account info for the platform wallet.
         """
-        from xrpl.models.requests import AccountInfo
-
         try:
             req = AccountInfo(
                 account=self.address,
@@ -140,3 +142,52 @@ class XRPLClient:
             return response.result
         except Exception as e:
             raise XRPLClientError(f"Failed to fetch account info: {e}") from e
+
+    def set_trustline(
+        self,
+        account: str,
+        limit_amount: float,
+        currency: str,
+        issuer: str,
+        expiration: datetime | None = None,
+    ) -> dict:
+        """
+        Set or update a TrustLine on XRPL for a business account.
+
+        :param account: The account that will hold the TrustLine (business)
+        :param limit_amount: Maximum amount the account can hold (numeric)
+        :param currency: Currency code (3-letter or token code, e.g., USDC)
+        :param issuer: Issuer address of the currency (usually the bank)
+        :param expiration: Optional expiration timestamp for off-chain tracking
+        :return: XRPL transaction result as dict
+        :raises XRPLSubmissionError: if submission fails
+        """
+        try:
+            # Build the TrustSet transaction
+            tx = TrustSet(
+                account=account,
+                limit_amount={
+                    "currency": currency,
+                    "issuer": issuer,
+                    "value": str(limit_amount),
+                },
+                # Optional to add flags here, e.g., tfSetNoRipple
+                # flags=0
+            )
+
+            # Autofill sequence, fee, lastLedgerSequence
+            signed_tx = safe_sign_and_autofill_transaction(
+                tx, self._wallet, self._client
+            )
+
+            # Submit to XRPL
+            result = self.submit(signed_tx)
+
+            # Can optionally track expiration in your database; XRPL itself has no expiration
+            if expiration:
+                result.result["expires_at"] = expiration.isoformat()
+
+            return result.result
+
+        except Exception as e:
+            raise XRPLSubmissionError(f"Failed to set TrustLine: {e}") from e
