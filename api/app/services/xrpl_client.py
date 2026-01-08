@@ -2,17 +2,17 @@ import os
 import threading
 from pathlib import Path
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from xrpl.clients import JsonRpcClient
 from xrpl.wallet import Wallet
 from xrpl.transaction import submit_and_wait
 from xrpl.models.transactions import TrustSet, Payment, EscrowCreate, EscrowFinish, Clawback
-from xrpl.models.requests import AccountInfo
+from xrpl.models.requests import AccountInfo, AccountTx
 
-# =====================
+# ============================
 # Load environment variables
-# =====================
+# ============================
 BASE_DIR = Path(__file__).resolve().parents[2]  # /api
 load_dotenv(BASE_DIR / ".env")
 
@@ -29,6 +29,13 @@ class XRPLSubmissionError(XRPLClientError):
     """Raised when a transaction submission fails."""
     pass
 
+# =====================
+# XRPL Datetime Conversion Helper
+# =====================
+XRPL_EPOCH = datetime(2000, 1, 1)
+
+def xrpl_time_to_datetime(xrpl_time: int) -> datetime:
+    return XRPL_EPOCH + timedelta(seconds=xrpl_time)
 
 # =====================
 # XRPL Client
@@ -164,6 +171,47 @@ class XRPLClient:
             return response.result
         except Exception as e:
             raise XRPLSubmissionError(f"Failed to submit payment: {e}") from e
+
+    # -------------------------
+    # Transaction history
+    # -------------------------
+    def get_account_transactions(
+        self,
+        address: str | None = None,
+        limit: int = 50,
+        marker: dict | None = None
+    ) -> dict:
+        """
+        Fetch validated transactions for an account.
+
+        Returns raw XRPL response:
+        {
+            "transactions": [...],
+            "marker": {...} | None
+        }
+        """
+        try:
+            req = AccountTx(
+                account=address or self.address,
+                ledger_index_min=-1,
+                ledger_index_max=-1,
+                limit=limit,
+                marker=marker,
+                binary=False,
+                forward=False
+            )
+
+            response = self._client.request(req)
+            return {
+                "transactions": response.result.get("transactions", []),
+                "marker": response.result.get("marker")
+            }
+
+        except Exception as e:
+            raise XRPLClientError(
+                f"Failed to fetch account transactions: {e}"
+            ) from e
+
 
     # -------------------------
     # Escrow
