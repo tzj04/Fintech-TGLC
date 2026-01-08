@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Header from '../../components/ui/Header';
 import TransactionStatusIndicator from '../../components/ui/TransactionStatusIndicator';
 import Button from '../../components/ui/Button';

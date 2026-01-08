@@ -205,7 +205,8 @@ class APIClient {
         address
       )}&limit=${limit}`
     );
- 
+  }
+
   async getCreditScore(address: string): Promise<CreditScore> {
     if (!validateXrplAddress(address)) {
       throw new Error("Invalid XRPL address format");
