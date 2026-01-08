@@ -18,6 +18,10 @@ export default function AppImage({
   height,
   ...props
 }: AppImageProps) {
+  if(!src || src.trim() === ""){
+    return null;
+  }
+
   if (src?.startsWith('http') || src?.startsWith('/')) {
     return (
       <img
