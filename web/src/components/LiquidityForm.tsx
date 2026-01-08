@@ -83,9 +83,12 @@ export function LiquidityForm() {
       const response = await apiClient.requestLiquidity(requestData);
 
       if (response.status === "approved") {
+        setResult(
+          response.message ||
+          `Approved! Escrow created: ${response.amount_xrp} XRP`
+        );
         if (response.transaction_url || response.explorer_url) {
           setTransactionUrl(response.transaction_url ?? response.explorer_url ?? null);
-          setResult(`Approved! Escrow created: ${response.amount_xrp} XRP`);
         }
         if (response.tx_hash) {
           setTxHash(response.tx_hash ?? null);
