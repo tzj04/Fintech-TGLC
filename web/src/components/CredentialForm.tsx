@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { apiClient } from '@/lib/api';
 import { useWallet } from '@/lib/use-wallet';
+import { Button, Input } from './ui';
+import { cn } from '@/lib/utils/cn';
 
 interface TransactionDetails {
   transaction: Record<string, any>;
@@ -119,83 +121,54 @@ export function CredentialForm() {
   };
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 p-6">
-      <h2 className="text-lg font-semibold mb-4 text-black dark:text-zinc-50">Issue Credential</h2>
+    <div className="bg-card rounded-lg border border-border p-6">
+      <h2 className="text-lg font-semibold mb-4 text-foreground">Issue Credential</h2>
       
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-1 text-zinc-700 dark:text-zinc-300">
-            Principal Address
-          </label>
-          {isConnected && connectedAddress ? (
-            <div className="w-full px-3 py-2 border border-green-300 dark:border-green-700 rounded bg-green-50 dark:bg-green-900/20 text-black dark:text-zinc-50 text-sm font-mono flex items-center justify-between">
-              <span>{connectedAddress}</span>
-              <span className="text-xs text-green-600 dark:text-green-400">✓ Connected</span>
-            </div>
-          ) : (
-            <>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="rXXX..."
-                required={!isConnected}
-                pattern="^r[1-9A-HJ-NP-Za-km-z]{25,34}$"
-                title="Must be a valid XRPL address starting with 'r'"
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 text-sm font-mono"
-              />
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                Enter address or connect wallet above
-              </p>
-            </>
-          )}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1 text-zinc-700 dark:text-zinc-300">
-            Trust Limit
-          </label>
-          <input
-            type="text"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            pattern="^\d+(\.\d+)?$"
-            title="Must be a positive number"
-            className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 text-sm"
+        {isConnected && connectedAddress ? (
+          <div className="w-full px-3 py-2 border border-success/30 rounded-md bg-success/10 text-foreground text-sm font-mono flex items-center justify-between">
+            <span>{connectedAddress}</span>
+            <span className="text-xs text-success">✓ Connected</span>
+          </div>
+        ) : (
+          <Input
+            label="Principal Address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="rXXX..."
+            required={!isConnected}
+            pattern="^r[1-9A-HJ-NP-Za-km-z]{25,34}$"
+            title="Must be a valid XRPL address starting with 'r'"
+            description="Enter address or connect wallet above"
+            className="font-mono"
           />
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            Maximum amount of currency the principal can hold
-          </p>
-        </div>
+        )}
 
-        <div>
-          <label className="block text-sm font-medium mb-1 text-zinc-700 dark:text-zinc-300">
-            Currency Code
-          </label>
-          <input
-            type="text"
-            value={currency}
-            onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-            pattern="^[A-Z0-9]{3,40}$"
-            title="3-40 uppercase alphanumeric characters"
-            className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 text-sm font-mono"
-          />
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            Currency identifier (e.g., CORRIDOR_ELIGIBLE)
-          </p>
-        </div>
+        <Input
+          label="Trust Limit"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          pattern="^\d+(\.\d+)?$"
+          title="Must be a positive number"
+          description="Maximum amount of currency the principal can hold"
+        />
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full px-4 py-2 bg-black dark:bg-zinc-50 text-white dark:text-black rounded font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
+        <Input
+          label="Currency Code"
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+          pattern="^[A-Z0-9]{3,40}$"
+          title="3-40 uppercase alphanumeric characters"
+          description="Currency identifier (e.g., CORRIDOR_ELIGIBLE)"
+          className="font-mono"
+        />
+
+        <Button type="submit" disabled={loading} loading={loading} fullWidth>
           {loading ? 'Preparing Transaction...' : 'Prepare Credential'}
-        </button>
+        </Button>
 
-        {/* Error Display */}
         {error && (
-          <div className="text-sm text-red-600 dark:text-red-400 p-3 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
+          <div className="text-sm text-destructive p-3 bg-destructive/10 rounded-md border border-destructive/20">
             <p className="font-medium mb-1">Error</p>
             <p>{error}</p>
             {error.includes('does not exist') && (
@@ -211,29 +184,28 @@ export function CredentialForm() {
           </div>
         )}
 
-        {/* Success Display */}
         {txDetails && (
-          <div className="text-sm text-green-600 dark:text-green-400 p-4 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
+          <div className="text-sm text-success p-4 bg-success/10 rounded-md border border-success/20">
             <div className="flex items-start justify-between mb-3">
               <div>
                 <p className="font-semibold text-base mb-1">✓ Transaction Prepared</p>
-                <p className="text-xs text-green-700 dark:text-green-300">{txDetails.message}</p>
+                <p className="text-xs text-success/80">{txDetails.message}</p>
               </div>
-              <span className="px-2 py-1 bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-100 rounded text-xs font-medium">
+              <span className="px-2 py-1 bg-success/20 text-success rounded text-xs font-medium">
                 {txDetails.status}
               </span>
             </div>
 
             <div className="space-y-2 text-xs">
-              <div className="flex justify-between items-center py-2 border-t border-green-200 dark:border-green-800">
-                <span className="text-green-700 dark:text-green-300 font-medium">Issuer:</span>
+              <div className="flex justify-between items-center py-2 border-t border-success/20">
+                <span className="text-success/80 font-medium">Issuer:</span>
                 <div className="flex items-center gap-2">
-                  <code className="text-green-900 dark:text-green-100 font-mono bg-green-100 dark:bg-green-800 px-2 py-1 rounded">
+                  <code className="text-success font-mono bg-success/20 px-2 py-1 rounded">
                     {txDetails.issuer.slice(0, 8)}...{txDetails.issuer.slice(-6)}
                   </code>
                   <button
                     onClick={() => copyToClipboard(txDetails.issuer)}
-                    className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200"
+                    className="text-success hover:text-success/80"
                     title="Copy to clipboard"
                   >
                     📋
@@ -241,73 +213,71 @@ export function CredentialForm() {
                 </div>
               </div>
 
-              <div className="flex justify-between items-center py-2 border-t border-green-200 dark:border-green-800">
-                <span className="text-green-700 dark:text-green-300 font-medium">Principal:</span>
-                <code className="text-green-900 dark:text-green-100 font-mono bg-green-100 dark:bg-green-800 px-2 py-1 rounded">
+              <div className="flex justify-between items-center py-2 border-t border-success/20">
+                <span className="text-success/80 font-medium">Principal:</span>
+                <code className="text-success font-mono bg-success/20 px-2 py-1 rounded">
                   {txDetails.transaction.account?.slice(0, 8)}...{txDetails.transaction.account?.slice(-6)}
                 </code>
               </div>
 
-              <div className="flex justify-between items-center py-2 border-t border-green-200 dark:border-green-800">
-                <span className="text-green-700 dark:text-green-300 font-medium">Currency:</span>
-                <code className="text-green-900 dark:text-green-100 font-mono bg-green-100 dark:bg-green-800 px-2 py-1 rounded">
+              <div className="flex justify-between items-center py-2 border-t border-success/20">
+                <span className="text-success/80 font-medium">Currency:</span>
+                <code className="text-success font-mono bg-success/20 px-2 py-1 rounded">
                   {formatCurrency(txDetails.transaction.limit_amount?.currency || currency)}
                 </code>
               </div>
 
-              <div className="flex justify-between items-center py-2 border-t border-green-200 dark:border-green-800">
-                <span className="text-green-700 dark:text-green-300 font-medium">Trust Limit:</span>
-                <code className="text-green-900 dark:text-green-100 font-mono bg-green-100 dark:bg-green-800 px-2 py-1 rounded">
+              <div className="flex justify-between items-center py-2 border-t border-success/20">
+                <span className="text-success/80 font-medium">Trust Limit:</span>
+                <code className="text-success font-mono bg-success/20 px-2 py-1 rounded">
                   {txDetails.transaction.limit_amount?.value || amount}
                 </code>
               </div>
 
-              <div className="flex justify-between items-center py-2 border-t border-green-200 dark:border-green-800">
-                <span className="text-green-700 dark:text-green-300 font-medium">Fee:</span>
-                <code className="text-green-900 dark:text-green-100 font-mono bg-green-100 dark:bg-green-800 px-2 py-1 rounded">
+              <div className="flex justify-between items-center py-2 border-t border-success/20">
+                <span className="text-success/80 font-medium">Fee:</span>
+                <code className="text-success font-mono bg-success/20 px-2 py-1 rounded">
                   {txDetails.transaction.fee} drops
                 </code>
               </div>
             </div>
 
             {txDetails.txHash ? (
-              <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded">
-                <p className="text-xs text-green-800 dark:text-green-200 font-medium mb-2">
-                  ✓ Transaction Submitted
-                </p>
+              <div className="mt-4 p-3 bg-success/10 border border-success/20 rounded-md">
+                <p className="text-xs text-success font-medium mb-2">✓ Transaction Submitted</p>
                 <a
                   href={`https://testnet.xrpl.org/transactions/${txDetails.txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs underline text-green-800 dark:text-green-200 hover:opacity-80 break-all"
+                  className="text-xs underline text-success hover:opacity-80 break-all"
                 >
                   View on XRPL Explorer: {txDetails.txHash.slice(0, 16)}...
                 </a>
               </div>
             ) : isConnected && connectedAddress === txDetails.transaction.account ? (
               <div className="mt-4 space-y-2">
-                <button
+                <Button
                   onClick={handleSignAndSubmit}
                   disabled={submitting}
-                  className="w-full px-4 py-2 bg-green-600 dark:bg-green-700 text-white rounded font-medium hover:bg-green-700 dark:hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  loading={submitting}
+                  variant="success"
+                  fullWidth
                 >
-                  {submitting ? 'Submitting...' : 'Sign & Submit with Crossmark'}
-                </button>
+                  Sign & Submit with Crossmark
+                </Button>
                 <a
                   href={`https://testnet.xrpl.org/accounts/${txDetails.transaction.account}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs underline text-green-600 dark:text-green-400 hover:opacity-80 block text-center"
+                  className="text-xs underline text-success hover:opacity-80 block text-center"
                 >
                   View account on XRPL Explorer →
                 </a>
               </div>
             ) : (
-              <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
-                <p className="text-xs text-yellow-800 dark:text-yellow-200 font-medium mb-2">
-                  ⚠️ Next Steps:
-                </p>
-                <ol className="text-xs text-yellow-700 dark:text-yellow-300 space-y-1 list-decimal list-inside">
+              <div className="mt-4 p-3 bg-warning/10 border border-warning/20 rounded-md">
+                <p className="text-xs text-warning font-medium mb-2">⚠️ Next Steps:</p>
+                <ol className="text-xs text-warning/80 space-y-1 list-decimal list-inside">
                   <li>Connect wallet matching this address</li>
                   <li>Sign and submit transaction</li>
                   <li>Verify on XRPL explorer</li>
@@ -316,19 +286,22 @@ export function CredentialForm() {
                   href={`https://testnet.xrpl.org/accounts/${txDetails.transaction.account}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs underline mt-2 inline-block text-yellow-800 dark:text-yellow-200 hover:opacity-80"
+                  className="text-xs underline mt-2 inline-block text-warning hover:opacity-80"
                 >
                   View account on XRPL Explorer →
                 </a>
               </div>
             )}
 
-            <button
+            <Button
               onClick={() => copyToClipboard(JSON.stringify(txDetails.transaction, null, 2))}
-              className="mt-3 w-full px-3 py-2 bg-green-600 dark:bg-green-700 text-white rounded text-xs font-medium hover:bg-green-700 dark:hover:bg-green-600 transition-colors"
+              variant="outline"
+              size="sm"
+              fullWidth
+              className="mt-3"
             >
               📋 Copy Transaction JSON
-            </button>
+            </Button>
           </div>
         )}
       </form>
