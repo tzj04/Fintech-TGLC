@@ -24,6 +24,18 @@ router = APIRouter(tags=["Liquidity"])
 DEFAULT_ESCROW_DAYS = 30  # Repayment deadline (not when funds are available)
 MAX_XRP_AMOUNT = 1_000_000_000
 
+# XRPL Explorer URLs by network
+EXPLORER_URLS = {
+    "mainnet": "https://xrpl.org/transactions/",
+    "testnet": "https://testnet.xrpl.org/transactions/",
+    "devnet": "https://testnet.xrpl.org/transactions/",
+}
+
+# Get network from environment (default to testnet)
+import os
+XRPL_NETWORK = os.getenv("XRPL_NETWORK", "testnet")
+EXPLORER_BASE_URL = EXPLORER_URLS.get(XRPL_NETWORK, EXPLORER_URLS["testnet"])
+
 # -------------------
 # Pydantic Models
 # -------------------
@@ -149,10 +161,12 @@ async def request_liquidity(req: LiquidityRequest):
                 finish_after=unlock_timestamp
             )
             
-            # Submit the escrow immediately
+            # Prepare the escrow transaction
             prepared_tx = await run_in_threadpool(autofill, escrow_tx, xrpl_client.client)
             tx_dict = prepared_tx.to_dict()
             
+            # Return prepared transaction for bank to sign with their wallet
+            logger.info(f"Prepared escrow for bank {best_bank['bank_name']} to sign and submit")
             return {
                 "status": "matched",
                 "transaction": tx_dict,
@@ -163,33 +177,16 @@ async def request_liquidity(req: LiquidityRequest):
                     "name": best_bank["bank_name"],
                     "wallet": best_bank["wallet_address"]
                 },
-                "message": f"Matched with {best_bank['bank_name']}. Escrow transaction prepared for bank signing."
+                "explorer_url_template": f"{EXPLORER_BASE_URL}{{tx_hash}}",
+                "message": f"Matched with {best_bank['bank_name']}. Transaction prepared. {best_bank['bank_name']} must sign and submit, then share the explorer URL."
             }
         else:
-            # Fallback to platform wallet if no banks match
-            logger.info("No banks matched, using platform wallet fallback")
-            platform_wallet = xrpl_client._wallet
-            
-            escrow_tx = EscrowCreate(
-                account=platform_wallet.classic_address,
-                destination=req.principal_address,
-                amount=xrp_to_drops(req.amount_xrp),
-                finish_after=unlock_timestamp
-            )
-            
-            prepared_tx = await run_in_threadpool(autofill, escrow_tx, xrpl_client.client)
-            response = await run_in_threadpool(xrpl_client.submit, prepared_tx, platform_wallet)
-            
-            tx_hash = response.get("hash")
-            logger.info(f"Escrow created directly: {tx_hash}")
-            
+            # No banks matched - return error with details
+            logger.info("No banks matched for this request")
             return {
-                "status": "approved",
-                "tx_hash": tx_hash,
-                "amount_xrp": req.amount_xrp,
-                "credit": eligibility["credit"],
-                "unlock_timestamp": unlock_timestamp,
-                "message": "Escrow created successfully. Funds will be available after unlock time."
+                "status": "rejected",
+                "reason": f"No matching banks. Check credit score ({eligibility['credit']['score']}) or requested amount ({req.amount_xrp} XRP)",
+                "credit": eligibility["credit"]
             }
 
     except HTTPException:
