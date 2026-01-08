@@ -59,8 +59,10 @@ class XRPLClient:
             rpc_url = "https://xrplcluster.com/"
         elif network == "testnet":
             rpc_url = "https://s.altnet.rippletest.net:51234/"
+        elif network == "devnet":
+            rpc_url = "https://s.devnet.rippletest.net:51234/"
         else:
-            raise ValueError(f"Unsupported XRPL_NETWORK: {network}")
+            raise ValueError(f"Unsupported XRPL_NETWORK: {network}. Use 'mainnet', 'testnet', or 'devnet'")
 
         self._client = JsonRpcClient(rpc_url)
 

@@ -25,7 +25,7 @@ class AgentBot:
         
         logger.info(f"Approved. Creating escrow for {amount_xrp} XRP")
         escrow_tx = self.escrow_service.create_escrow(
-            self.credential_service.issuer_wallet.classic_address,
+            self.credential_service.issuer_wallet,
             principal_address,
             amount_xrp
         )
