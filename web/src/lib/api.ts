@@ -25,6 +25,9 @@ export interface LiquidityRequestResponse {
   status: string;
   tx_hash?: string;
   transaction?: Record<string, any>;
+  transaction_url?: string;
+  explorer_url?: string;
+  explorer_url_template?: string;
   amount_xrp?: number;
   reason?: string;
   credit?: CreditScore;
@@ -95,7 +98,7 @@ class APIClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     try {
       const response = await fetch(url, {
         ...options,
@@ -106,26 +109,28 @@ class APIClient {
         if (response.status === 404) {
           throw new Error(
             `Endpoint not found: ${url}\n` +
-            `Please ensure:\n` +
-            `1. Backend server is running (uvicorn app.main:app --reload --port 8000)\n` +
-            `2. Backend is accessible at ${this.baseUrl}\n` +
-            `3. Route is registered correctly`
+              `Please ensure:\n` +
+              `1. Backend server is running (uvicorn app.main:app --reload --port 8000)\n` +
+              `2. Backend is accessible at ${this.baseUrl}\n` +
+              `3. Route is registered correctly`
           );
         }
-        
+
         const error = await response
           .json()
           .catch(() => ({ detail: response.statusText }));
-        throw new Error(error.detail || `HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(
+          error.detail || `HTTP ${response.status}: ${response.statusText}`
+        );
       }
 
       return response.json();
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
+      if (error instanceof TypeError && error.message.includes("fetch")) {
         throw new Error(
           `Cannot connect to backend at ${this.baseUrl}\n` +
-          `Please ensure the backend server is running:\n` +
-          `cd api && uvicorn app.main:app --reload --port 8000`
+            `Please ensure the backend server is running:\n` +
+            `cd api && uvicorn app.main:app --reload --port 8000`
         );
       }
       throw error;
@@ -214,7 +219,9 @@ class APIClient {
     return this.request<CreditScore>(`/api/credentials/score/${address}`);
   }
 
-  async registerBank(data: BankRegistration): Promise<{ status: string; bank: Bank }> {
+  async registerBank(
+    data: BankRegistration
+  ): Promise<{ status: string; bank: Bank }> {
     if (!validateXrplAddress(data.wallet_address)) {
       throw new Error("Invalid XRPL address format");
     }
@@ -224,8 +231,19 @@ class APIClient {
     });
   }
 
-  async finishEscrow(borrowerWallet: string, escrowSequence: number, ownerWallet: string): Promise<{ status: string; transaction: Record<string, any>; message: string }> {
-    if (!validateXrplAddress(borrowerWallet) || !validateXrplAddress(ownerWallet)) {
+  async finishEscrow(
+    borrowerWallet: string,
+    escrowSequence: number,
+    ownerWallet: string
+  ): Promise<{
+    status: string;
+    transaction: Record<string, any>;
+    message: string;
+  }> {
+    if (
+      !validateXrplAddress(borrowerWallet) ||
+      !validateXrplAddress(ownerWallet)
+    ) {
       throw new Error("Invalid XRPL address format");
     }
     return this.request("/api/liquidity/finish-escrow", {
