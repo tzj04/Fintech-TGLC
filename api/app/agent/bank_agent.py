@@ -5,6 +5,7 @@ from ..models.exposure_state import ExposureState
 from ..models.responses import CreditDecision
 from ..services.xrpl_client import XRPLClient
 
+
 class BankAgent(BaseAgent):
     def __init__(
         self,
@@ -20,12 +21,12 @@ class BankAgent(BaseAgent):
 
     def act(self, liquidity_request) -> CreditDecision:
         """
-        Main orchestration:
+        Main orchestration for TGLC:
         1. Verify proofs
         2. Check policy
         3. Evaluate exposure
         4. Produce CreditDecision
-        5. Call XRPL if approved
+        5. Always submit escrow + clawback on XRPL if approved
         """
         # Step 1: verify proofs from credentials
         proof_result = self.proof_verifier.verify(liquidity_request.credentials)
@@ -45,8 +46,26 @@ class BankAgent(BaseAgent):
             reason=None if approved else "Policy or exposure violation"
         )
         
-        # Step 5: submit to XRPL if approved
+        # Step 5: XRPL transactions (always escrow + clawback)
         if approved:
-            self.xrpl_client.submit_payment(liquidity_request.business_id, liquidity_request.amount)
+            try:
+                # Time till clawback initiates if contract unpaid
+                finish_after = int(liquidity_request.unlock_time.timestamp())
+                
+                # Create escrow for the approved amount
+                self.xrpl_client.create_escrow(
+                    destination=liquidity_request.business_id,
+                    amount=liquidity_request.amount,
+                    finish_after=finish_after
+                )
+
+                # Prepare clawback transaction
+                self.xrpl_client.clawback(
+                    from_account=liquidity_request.business_id,
+                    amount=liquidity_request.amount
+                )
+            except Exception as e:
+                decision.approved = False
+                decision.reason = f"XRPL transaction failed: {e}"
         
         return decision
