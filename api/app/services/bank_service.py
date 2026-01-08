@@ -48,7 +48,8 @@ class BankService:
                         "issued_tokens": b.get("issued_tokens", []),
                         "trustlines": b.get("trustlines", []),
                         "balance_xrp": b.get("balance_xrp", 0.0),
-                        "active": b.get("active", True)
+                        "active": b.get("active", True),
+                        "seed": b.get("seed")  # Include seed for auto-signing
                     }
                     _banks[wallet_address] = bank_data
                 logger.info(f"Loaded banks: {list(_banks.keys())}")

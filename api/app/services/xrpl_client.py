@@ -57,6 +57,7 @@ class XRPLClient:
             "devnet": "https://s.devnet.rippletest.net:51234/"
         }
         self._client = JsonRpcClient(rpc_urls.get(network, rpc_urls["testnet"]))
+        self._network = network
 
         seed = os.getenv("ISSUER_SEED")
         if not seed:
@@ -254,3 +255,38 @@ class XRPLClient:
             if t["currency"].upper() == currency.upper():
                 return True
         return False
+
+    # -------------------------
+    # Helper: generate transaction URL
+    # -------------------------
+    def get_transaction_url(self, tx_hash: str) -> str:
+        """
+        Generate a transaction explorer URL based on network.
+        
+        Args:
+            tx_hash: Transaction hash
+            
+        Returns:
+            Full URL to view transaction on explorer
+        """
+        explorer_urls = {
+            "mainnet": "https://xrpl.org/transactions",
+            "testnet": "https://testnet.xrpl.org/transactions",
+            "devnet": "https://devnet.xrpl.org/transactions"
+        }
+        base_url = explorer_urls.get(self._network, explorer_urls["testnet"])
+        return f"{base_url}/{tx_hash}"
+
+    # -------------------------
+    # Helper: create wallet from seed and sign transaction
+    # -------------------------
+    def sign_and_submit_with_wallet(self, tx, wallet_seed: str) -> dict:
+        """
+        Sign and submit a transaction using a provided wallet seed.
+        Useful for auto-signing transactions from bank wallets.
+        """
+        try:
+            bank_wallet = Wallet.from_seed(wallet_seed)
+            return self.submit(tx, bank_wallet)
+        except Exception as e:
+            raise XRPLSubmissionError(f"Failed to sign and submit with bank wallet: {e}") from e

@@ -11,6 +11,7 @@ from ..services.credit_service import CreditService
 from ..services.escrow_service import EscrowService
 from ..services.bank_service import BankService
 from ..services.xrpl_client import XRPLClient
+from ..agent.bank_agent import BankAgent
 from ..models.proof import ProofPayload as ProofPayloadModel
 from ..utils.validators import validate_xrpl_address
 
@@ -141,6 +142,9 @@ async def request_liquidity(req: LiquidityRequest):
         if matching_banks:
             best_bank = matching_banks[0]
             logger.info(f"Matched with bank: {best_bank['bank_name']} ({best_bank['wallet_address']})")
+            logger.info(f"Bank data keys: {best_bank.keys()}")
+            logger.info(f"Bank seed present: {'seed' in best_bank}")
+            logger.info(f"Bank seed value: {best_bank.get('seed', 'NOT FOUND')}")
             
             escrow_tx = EscrowCreate(
                 account=best_bank["wallet_address"],
@@ -152,18 +156,118 @@ async def request_liquidity(req: LiquidityRequest):
             prepared_tx = await run_in_threadpool(autofill, escrow_tx, xrpl_client.client)
             tx_dict = prepared_tx.to_dict()
             
-            return {
-                "status": "matched",
-                "transaction": tx_dict,
-                "amount_xrp": req.amount_xrp,
-                "credit": eligibility["credit"],
-                "unlock_timestamp": unlock_timestamp,
-                "matched_bank": {
-                    "name": best_bank["bank_name"],
-                    "wallet": best_bank["wallet_address"]
-                },
-                "message": f"Matched with {best_bank['bank_name']}. Escrow transaction prepared for bank signing."
-            }
+            # Try to auto-sign if bank has seed configured
+            bank_seed = best_bank.get("seed")
+            logger.info(f"Checking auto-sign: bank_seed is None? {bank_seed is None}, bank_seed value: '{bank_seed}'")
+            
+            if bank_seed:
+                logger.info(f"✅ Auto-signing enabled! BankAgent evaluating request for {best_bank['bank_name']}")
+                logger.info(f"BankAgent evaluating request for {best_bank['bank_name']}")
+                # Initialize BankAgent to make approval decision
+                from ..models.exposure_state import ExposureState
+                from ..services.policy_engine import PolicyEngine
+                from ..models.policy import CreditPolicy
+                
+                try:
+                    proof_verifier = ProofVerifier()
+                    
+                    # Create policy from bank's credit policy
+                    bank_policy_data = best_bank.get("credit_policy", {})
+                    credit_policy = CreditPolicy(
+                        max_duration_days=bank_policy_data.get("max_duration_days", 365),
+                        max_default_rate=bank_policy_data.get("max_default_rate", 0.1),
+                        max_exposure=bank_policy_data.get("max_exposure", float(best_bank.get("balance_xrp", 50000)))
+                    )
+                    policy_engine = PolicyEngine(credit_policy)
+                    
+                    # Create exposure state for this business-bank pair
+                    exposure_state = ExposureState(
+                        business_id=req.principal_address,
+                        bank_id=best_bank.get("bank_id", "unknown"),
+                        current_exposure=0.0  # Assume no prior exposure for simplicity
+                    )
+                    bank_agent = BankAgent(
+                        proof_verifier=proof_verifier,
+                        policy_engine=policy_engine,
+                        exposure_state=exposure_state,
+                        xrpl_client=xrpl_client,
+                        bank_service=bank_svc
+                    )
+                    
+                    # Create a request object for the BankAgent evaluation
+                    class LiquidityRequestForAgent:
+                        def __init__(self, req, principal_address, amount_xrp, unlock_time):
+                            self.credentials = req.proof_data or {}
+                            self.business_id = principal_address
+                            self.amount_xrp = amount_xrp
+                            self.amount = amount_xrp
+                            self.unlock_time = unlock_time
+                    
+                    agent_request = LiquidityRequestForAgent(
+                        req, req.principal_address, req.amount_xrp, 
+                        datetime.fromtimestamp(unlock_timestamp, tz=timezone.utc)
+                    )
+                    
+                    # BankAgent evaluates and auto-signs if approved
+                    agent_decision = await run_in_threadpool(
+                        bank_agent.evaluate_and_auto_sign_escrow,
+                        agent_request,
+                        tx_dict,
+                        best_bank,
+                        bank_seed
+                    )
+                    
+                    logger.info(f"BankAgent decision result: {agent_decision}")
+                except Exception as e:
+                    logger.error(f"BankAgent evaluation error: {e}", exc_info=True)
+                    agent_decision = {"approved": False, "status": "error", "reason": str(e)}
+                
+                if agent_decision.get("approved"):
+                    # Bank approved and signed
+                    tx_hash = agent_decision["tx_hash"]
+                    tx_url = xrpl_client.get_transaction_url(tx_hash)
+                    
+                    return {
+                        "status": "approved",
+                        "tx_hash": tx_hash,
+                        "tx_url": tx_url,
+                        "amount_xrp": req.amount_xrp,
+                        "credit": eligibility["credit"],
+                        "unlock_timestamp": unlock_timestamp,
+                        "matched_bank": {
+                            "name": best_bank["bank_name"],
+                            "wallet": best_bank["wallet_address"]
+                        },
+                        "auto_signed": True,
+                        "bank_decision": agent_decision["status"],
+                        "message": f"{best_bank['bank_name']} automatically approved and signed the escrow."
+                    }
+                else:
+                    # Bank rejected the request
+                    logger.info(f"Bank decision: NOT approved - {agent_decision.get('status')}")
+                    return {
+                        "status": "rejected",
+                        "bank_name": best_bank["bank_name"],
+                        "reason": agent_decision.get("reason", "Unknown"),
+                        "credit": eligibility["credit"],
+                        "bank_decision": agent_decision.get("status", "rejected"),
+                        "message": agent_decision.get("message", "Request was rejected by the bank.")
+                    }
+            else:
+                # No seed configured, return for manual signing
+                return {
+                    "status": "matched",
+                    "transaction": tx_dict,
+                    "amount_xrp": req.amount_xrp,
+                    "credit": eligibility["credit"],
+                    "unlock_timestamp": unlock_timestamp,
+                    "matched_bank": {
+                        "name": best_bank["bank_name"],
+                        "wallet": best_bank["wallet_address"]
+                    },
+                    "auto_signed": False,
+                    "message": f"Matched with {best_bank['bank_name']}. Escrow transaction prepared for manual signing (no seed configured)."
+                }
         else:
             # Fallback to platform wallet if no banks match
             logger.info("No banks matched, using platform wallet fallback")
@@ -180,11 +284,13 @@ async def request_liquidity(req: LiquidityRequest):
             response = await run_in_threadpool(xrpl_client.submit, prepared_tx, platform_wallet)
             
             tx_hash = response.get("hash")
+            tx_url = xrpl_client.get_transaction_url(tx_hash)
             logger.info(f"Escrow created directly: {tx_hash}")
             
             return {
                 "status": "approved",
                 "tx_hash": tx_hash,
+                "tx_url": tx_url,
                 "amount_xrp": req.amount_xrp,
                 "credit": eligibility["credit"],
                 "unlock_timestamp": unlock_timestamp,

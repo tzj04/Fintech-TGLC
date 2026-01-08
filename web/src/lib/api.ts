@@ -24,12 +24,15 @@ export interface CredentialIssueResponse {
 export interface LiquidityRequestResponse {
   status: string;
   tx_hash?: string;
+  tx_url?: string;
   transaction?: Record<string, any>;
   amount_xrp?: number;
   reason?: string;
   credit?: CreditScore;
   unlock_timestamp?: number;
   message?: string;
+  auto_signed?: boolean;
+  bank_decision?: string;
   matched_bank?: {
     name: string;
     wallet: string;

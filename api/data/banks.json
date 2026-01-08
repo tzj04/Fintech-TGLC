@@ -2,9 +2,10 @@
   {
     "bank_id": "bank001",
     "bank_name": "Bank Alpha",
-    "wallet_address": "r3XMTXC5t4geUiXCmnYoMk5GwU8F6m3aAZ",
+    "wallet_address": "r96PSNGGMJdJBxAGb3kPpfrxn6cZPeTWc2",
+    "seed": "sEdSdFXQ1fV35tZkTB4ATtYNbFtbnnj",
     "issued_tokens": [
-      { "currency": "USD", "issuer": "r3XMTXC5t4geUiXCmnYoMk5GwU8F6m3aAZ" }
+      { "currency": "USD", "issuer": "r96PSNGGMJdJBxAGb3kPpfrxn6cZPeTWc2" }
     ],
     "credit_policy": {
       "min": 1,
