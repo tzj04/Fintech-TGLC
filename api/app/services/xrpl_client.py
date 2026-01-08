@@ -1,5 +1,6 @@
 import os
 import threading
+from pathlib import Path
 from dotenv import load_dotenv
 
 from xrpl.clients import JsonRpcClient
@@ -66,9 +67,9 @@ class XRPLClient:
         # -------------------------
         # Wallet / signer
         # -------------------------
-        seed = os.getenv("XRPL_SEED")
+        seed = os.getenv("ISSUER_SEED")
         if not seed:
-            raise RuntimeError("XRPL_SEED is not set in environment")
+            raise RuntimeError("ISSUER_SEED is not set in environment")
 
         # sequence=0 lets xrpl-py auto-fetch the correct sequence
         self._wallet = Wallet(seed=seed, sequence=0)

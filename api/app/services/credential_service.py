@@ -3,7 +3,7 @@
 from xrpl.wallet import Wallet
 from xrpl.models.transactions import TrustSet
 from xrpl.models.amounts import IssuedCurrencyAmount
-from xrpl.transaction import safe_sign_and_autofill_transaction, send_reliable_submission
+from xrpl.transaction import submit_and_wait
 from xrpl.clients import JsonRpcClient
 from .xrpl_client import XRPLClient
 
@@ -103,11 +103,8 @@ class CredentialService:
         )
 
         try:
-            # Sign and autofill transaction
-            signed_tx = safe_sign_and_autofill_transaction(tx, self.issuer_wallet, self.xrpl_client)
-            # Submit transaction and wait for confirmation
-            response = send_reliable_submission(signed_tx, self.xrpl_client)
-            logger.info(f"TrustSet submitted successfully for {principal_address}. Hash: {response.result.get('tx_json', {}).get('hash')}")
+            response = submit_and_wait(tx, self.xrpl_client, self.issuer_wallet)
+            logger.info(f"TrustSet submitted successfully for {principal_address}. Hash: {response.result.get('hash')}")
             return response.result
         except Exception as e:
             logger.error(f"Failed to submit TrustSet for {principal_address}: {e}")

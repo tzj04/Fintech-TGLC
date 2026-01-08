@@ -7,7 +7,7 @@ import re
 
 from xrpl.models.transactions import EscrowCreate, EscrowFinish, EscrowCancel
 from xrpl.utils import xrp_to_drops
-from xrpl.transaction import safe_sign_and_autofill_transaction, send_reliable_submission
+from xrpl.transaction import submit_and_wait
 from .xrpl_client import XRPLClient
 from xrpl.wallet import Wallet
 
@@ -72,9 +72,8 @@ class EscrowService:
     def submit_escrow_create(self, from_wallet: Wallet, to_address: str, amount_xrp: float, condition: Optional[str] = None) -> dict:
         tx = self.create_escrow(from_wallet, to_address, amount_xrp, condition)
         try:
-            signed_tx = safe_sign_and_autofill_transaction(tx, from_wallet, self.xrpl_client)
-            response = send_reliable_submission(signed_tx, self.xrpl_client)
-            logger.info(f"EscrowCreate submitted successfully. Hash: {response.result.get('tx_json', {}).get('hash')}")
+            response = submit_and_wait(tx, self.xrpl_client, from_wallet)
+            logger.info(f"EscrowCreate submitted successfully. Hash: {response.result.get('hash')}")
             return response.result
         except Exception as e:
             logger.error(f"Failed to submit EscrowCreate: {e}")
@@ -97,9 +96,8 @@ class EscrowService:
     def submit_escrow_finish(self, owner_wallet: Wallet, offer_sequence: int, fulfillment: Optional[str] = None) -> dict:
         tx = self.finish_escrow(owner_wallet, offer_sequence, fulfillment)
         try:
-            signed_tx = safe_sign_and_autofill_transaction(tx, owner_wallet, self.xrpl_client)
-            response = send_reliable_submission(signed_tx, self.xrpl_client)
-            logger.info(f"EscrowFinish submitted successfully. Hash: {response.result.get('tx_json', {}).get('hash')}")
+            response = submit_and_wait(tx, self.xrpl_client, owner_wallet)
+            logger.info(f"EscrowFinish submitted successfully. Hash: {response.result.get('hash')}")
             return response.result
         except Exception as e:
             logger.error(f"Failed to submit EscrowFinish: {e}")
@@ -120,9 +118,8 @@ class EscrowService:
     def submit_escrow_cancel(self, owner_wallet: Wallet, offer_sequence: int) -> dict:
         tx = self.cancel_escrow(owner_wallet, offer_sequence)
         try:
-            signed_tx = safe_sign_and_autofill_transaction(tx, owner_wallet, self.xrpl_client)
-            response = send_reliable_submission(signed_tx, self.xrpl_client)
-            logger.info(f"EscrowCancel submitted successfully. Hash: {response.result.get('tx_json', {}).get('hash')}")
+            response = submit_and_wait(tx, self.xrpl_client, owner_wallet)
+            logger.info(f"EscrowCancel submitted successfully. Hash: {response.result.get('hash')}")
             return response.result
         except Exception as e:
             logger.error(f"Failed to submit EscrowCancel: {e}")
