@@ -11,8 +11,12 @@ from ..services.credit_service import CreditService
 from ..services.escrow_service import EscrowService
 from ..services.bank_service import BankService
 from ..services.xrpl_client import XRPLClient
+from ..services.policy_engine import PolicyEngine
 from ..agent.bank_agent import BankAgent
 from ..models.proof import ProofPayload as ProofPayloadModel
+from ..models.exposure_state import ExposureState
+from ..models.policy import CreditPolicy
+from ..agent.bank_agent import BankAgent
 from ..utils.validators import validate_xrpl_address
 
 from xrpl.transaction import autofill, submit_and_wait
@@ -24,6 +28,18 @@ router = APIRouter(tags=["Liquidity"])
 
 DEFAULT_ESCROW_DAYS = 30  # Repayment deadline (not when funds are available)
 MAX_XRP_AMOUNT = 1_000_000_000
+
+# XRPL Explorer URLs by network
+EXPLORER_URLS = {
+    "mainnet": "https://xrpl.org/transactions/",
+    "testnet": "https://testnet.xrpl.org/transactions/",
+    "devnet": "https://testnet.xrpl.org/transactions/",
+}
+
+# Get network from environment (default to testnet)
+import os
+XRPL_NETWORK = os.getenv("XRPL_NETWORK", "testnet")
+EXPLORER_BASE_URL = EXPLORER_URLS.get(XRPL_NETWORK, EXPLORER_URLS["testnet"])
 
 # -------------------
 # Pydantic Models

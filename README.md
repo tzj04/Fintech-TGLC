@@ -2,70 +2,121 @@
 
 ## Overview
 
-A capital-efficient, compliance-first platform built on the XRPL, enabling regulated institutions (banks) and their corporate clients (principals) to securely access short-term cross-border liquidity.
+**TGLC** is a capital-efficient, compliance-first platform built on the **XRP Ledger (XRPL)**. It enables **regulated institutions (banks)** and their **corporate clients (principals)** to securely access short-term **cross-border liquidity** through **AI-assisted delegation**, reducing the need for pre-funded balances while preserving privacy and regulatory compliance.
 
-The system allows AI agents to act as delegated representatives, raising funds under strict pre-approved limits — reducing pre-funding requirements. In addition, they preserve privacy and ensure regulatory compliance.
+AI agents act as **delegated representatives**, authorised to request liquidity on behalf of businesses under strict pre-approved limits. All actions are **auditable, automated, and enforceable** through smart escrow contracts.
 
-## Platform Scope
+---
 
-This repository contains the infrastructure enabling:
+## Platform Capabilities
 
-- **Credential management** – issuance and revocation by banks
-- **AI agent interaction** – delegated liquidity requests
-- **Proof verification** – validation of off-chain performance proofs
-- **Smart escrow** – automated deployment and execution
-- **Dashboard/UX** – interfaces for principals, banks, and corridor monitoring
-- **Corridor administration** – limits, stake requirements, rule configuration
+This repository implements the core infrastructure to enable:
 
-## Actors
+- **Credential Management** – Banks issue and revoke corridor-specific credentials.
+- **AI Agent Interaction** – Non-human agents request liquidity under pre-approved limits.
+- **Proof Verification** – Validate off-chain performance proofs to assess risk or reduce collateral.
+- **Smart Escrow Execution** – Automatic release or clawback of funds based on validated proofs.
+- **User Dashboards** – Interfaces for principals, banks, and corridor operators.
+- **Corridor Administration** – Configurable limits, staking requirements, and business rules.
 
-| Role                             | Responsibility                                                                                         |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Bank / Issuer**                | Provides liquidity, issues revocable credentials (`CORRIDOR_ELIGIBLE` tokens), and monitors compliance |
-| **Principal / Business**         | Stakes partial capital in escrow; delegates AI agents to request liquidity on their behalf             |
-| **AI Agent**                     | Non-human DID representing the business; operates within pre-approved limits, cannot own capital       |
-| **Verifier / Corridor Operator** | Validates performance proofs and triggers smart escrow logic without accessing sensitive identity data |
+---
+
+## Key Actors
+
+| Role                             | Responsibility                                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Bank / Issuer**                | Provides liquidity, issues revocable credentials (`CORRIDOR_ELIGIBLE`), monitors compliance      |
+| **Principal / Business**         | Stakes partial capital in escrow; delegates AI agents to request liquidity                       |
+| **AI Agent**                     | Non-human DID representing the business; operates within limits; cannot hold capital             |
+| **Verifier / Corridor Operator** | Validates performance proofs and triggers escrow logic without accessing sensitive identity data |
+
+---
 
 ## Workflow
 
 1. **Credential Issuance**  
-   Bank issues a revocable, non-transferable token to a principal for a specific liquidity corridor.
+   Banks issue **revocable, non-transferable tokens** to principals for specific liquidity corridors.
 
 2. **Capital Stake**  
-   Business locks a partial stake in escrow (e.g., 30%)—required regardless of historical performance.
+   Businesses lock a **partial stake in escrow** (e.g., 30%), ensuring commitment regardless of historical performance.
 
 3. **Performance Proof**  
-   AI agent submits proof of past successful settlements. Strong performance may reduce rates or additional collateral, but does not remove stake requirements.
+   AI agents submit **proof of past successful settlements**. Good performance may reduce rates or collateral but cannot bypass stake requirements.
 
 4. **Escrow Execution**  
-   Smart escrow releases liquidity upon proof validation, or claws back funds if thresholds are not met.
+   Smart escrow **releases liquidity upon validation** or **claws back funds** if thresholds are unmet.
 
-## Key Advantages vs. Traditional Systems
+---
+
+## TGLC System Flow
+
+```text
++----------------+          +-----------------+          +----------------+
+|   Principal    |          |     AI Agent    |          |      Bank      |
+| / Business     |          | (Delegated DID) |          |  / Issuer      |
++----------------+          +-----------------+          +----------------+
+        |                          |                           |
+        | Stake capital in escrow  |                           |
+        |------------------------->|                           |
+        |                          | Request liquidity         |
+        |                          |-------------------------->|
+        |                          |                           |
+        |                          |   Verify credentials &    |
+        |                          |   corridor eligibility    |
+        |                          |<--------------------------|
+        |                          |                           |
+        |                          | Submit performance proof  |
+        |                          |-------------------------->|
+        |                          |                           |
+        |                          |  Smart escrow releases    |
+        |<-------------------------|  or clawback funds        |
+        |                          |                           |
+        v                          v                           v
+   Escrow & ledger        Performance proofs           Corridor monitoring
+   management             verified off-chain
+
+### How it works:
+
+- **Principal / Business** locks partial capital in escrow.
+- **AI Agent** acts as a delegate, submitting requests within pre-approved limits.
+- **Bank / Issuer** validates credentials, checks proofs, and triggers **smart escrow** for release or clawback.
+- **Off-chain performance proofs** are verified without revealing sensitive identity data.
+
+---
+
+## Advantages Over Traditional Systems
 
 | Advantage                  | Description                                                                             |
 | -------------------------- | --------------------------------------------------------------------------------------- |
-| **Capital Efficiency**     | Businesses lock only part of required funds, reducing idle foreign account balances     |
-| **Faster Settlement**      | Automated smart escrow enables near-instant liquidity release and settlement            |
+| **Capital Efficiency**     | Partial collateral reduces idle foreign account balances                                |
+| **Faster Settlement**      | Automated escrow enables near-instant liquidity release                                 |
 | **Lower Operational Risk** | Automated verification and clawback reduce manual errors                                |
 | **Privacy & Compliance**   | Identity and performance data are corridor-specific, time-limited, and stored off-chain |
-| **Scalable Delegation**    | AI agents can safely manage multiple corridors within pre-defined limits                |
+| **Scalable Delegation**    | AI agents can safely manage multiple corridors within defined limits                    |
 
-## Why Build This Now?
+---
 
-- **Traditional systems** are slow, capital-heavy, and manual.
-- **XRPL provides**:
-  - DID anchors and issued credential tokens
-  - Trust lines and smart escrow for conditional liquidity
-  - Native support for automated, compliance-aware execution
-- **Emerging capabilities**: Off-chain performance proofs and bounded AI agents enable automation without introducing regulatory or identity risk.
+## Why TGLC?
+
+Traditional cross-border liquidity systems are **slow, capital-heavy, and manual**. TGLC leverages XRPL to offer:
+
+- **Decentralised identifiers (DIDs)** and credential tokens for verified access
+- **Trust lines and smart escrow** for conditional liquidity
+- **Automated, compliance-aware execution** without exposing sensitive data
+- **AI-assisted delegation** to reduce manual workflow while maintaining regulatory safety
+
+---
 
 ## Demo Highlights
 
-- Issuer issuing a credential token
-- AI agent requesting liquidity
-- Verification of a performance proof
-- Smart escrow releasing funds or performing clawback
+- Issuer creates a credential token for a principal
+- AI agent requests liquidity on behalf of the business
+- Performance proof is validated off-chain
+- Smart escrow releases funds or executes clawback automatically
 
-## Takeaway
+---
 
-TGLC delivers a **programmable, capital-efficient, and privacy-preserving liquidity framework**. Banks supply liquidity, businesses delegate via AI agents, and this platform ensures trust, compliance, and automated execution—all on the XRPL.
+## Key Takeaway
+
+TGLC delivers a **programmable, capital-efficient, and privacy-preserving liquidity framework**. Banks provide liquidity, businesses delegate through AI agents, and the platform ensures **trust, compliance, and automated execution**—all powered by XRPL.
+```

@@ -1,5 +1,10 @@
 "use client";
+"use client";
 
+import { useState, useEffect, useCallback } from "react";
+import { apiClient, type CreditScore, type LiquidityRequest } from "@/lib/api";
+import { useWallet } from "@/lib/use-wallet";
+import { Button, Input } from "./ui";
 import { useState, useEffect, useCallback } from "react";
 import {
   apiClient,
@@ -14,10 +19,15 @@ const NETWORK_EXPLORER_URLS = {
   mainnet: "https://xrpl.org/transactions/",
   testnet: "https://testnet.xrpl.org/transactions/",
   devnet: "https://testnet.xrpl.org/transactions/",
+  mainnet: "https://xrpl.org/transactions/",
+  testnet: "https://testnet.xrpl.org/transactions/",
+  devnet: "https://testnet.xrpl.org/transactions/",
 } as const;
 
 export function LiquidityForm() {
   const { isConnected, address: walletAddress } = useWallet();
+  const [address, setAddress] = useState("");
+  const [amount, setAmount] = useState("");
   const [address, setAddress] = useState("");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,6 +42,8 @@ export function LiquidityForm() {
 
   const network = (process.env.NEXT_PUBLIC_XRPL_NETWORK_NAME ||
     "testnet") as keyof typeof NETWORK_EXPLORER_URLS;
+  const explorerUrl =
+    NETWORK_EXPLORER_URLS[network] || NETWORK_EXPLORER_URLS.testnet;
 
   const fetchCreditScore = useCallback(async (addr: string) => {
     if (!addr) {
@@ -87,43 +99,30 @@ export function LiquidityForm() {
         amount_xrp: amountNum,
       };
 
-      const response: LiquidityRequestResponse =
-        await apiClient.requestLiquidity(requestData);
-
-      console.log("Liquidity response:", response);
+      const response = await apiClient.requestLiquidity(requestData);
 
       if (response.status === "approved") {
-        setResult(`✅ Approved! Escrow created: ${response.amount_xrp} XRP`);
-
-        // Set transaction data if available
         if (response.tx_hash) {
+          setResult(`Approved! Escrow created: ${response.amount_xrp} XRP`);
           setTxHash(response.tx_hash);
-          console.log("Transaction hash:", response.tx_hash);
+        } else if (response.transaction) {
+          setResult(
+            `Approved! ${
+              response.message ||
+              "Escrow transaction prepared for bank signing."
+            }`
+          );
         }
-
-        if (response.tx_url) {
-          setTxUrl(response.tx_url);
-          console.log("Transaction URL:", response.tx_url);
-        }
-
-        if (response.auto_signed !== undefined) {
-          setAutoSigned(response.auto_signed);
-        }
-
-        if (response.bank_decision) {
-          setBankDecision(response.bank_decision);
-        }
-
         if (response.credit) {
           setCreditScore(response.credit);
         }
-      } else if (response.status === "rejected") {
+      } else if (response.status === "matched") {
         setResult(
-          `❌ Rejected: ${
-            response.reason || response.message || "Request was rejected"
+          `${
+            response.message ||
+            "Matched with bank. Transaction prepared for signing."
           }`
         );
-        setBankDecision("rejected");
         if (response.credit) {
           setCreditScore(response.credit);
         }
@@ -242,50 +241,23 @@ export function LiquidityForm() {
         </Button>
         {result && (
           <div
-            className={`text-sm p-4 rounded-md border space-y-3 ${
-              result.includes("✅")
+            className={`text-sm p-3 rounded-md border ${
+              result.includes("Approved")
                 ? "text-success bg-success/10 border-success/20"
-                : result.includes("❌")
-                ? "text-destructive bg-destructive/10 border-destructive/20"
                 : "text-muted-foreground bg-muted/30 border-border"
             }`}
           >
-            <div>{result}</div>
-            {autoSigned && (
-              <div className="text-xs text-muted-foreground bg-white/5 p-2 rounded">
-                🤖 Auto-signed by BankAgent
-              </div>
-            )}
+            {result}
             {txHash && (
-              <div className="space-y-2">
-                <div className="text-xs text-muted-foreground">
-                  Transaction Hash:
-                </div>
-                <div className="break-all text-primary font-mono text-xs bg-black/20 p-2 rounded overflow-x-auto">
-                  {txHash}
-                </div>
-                {txUrl ? (
-                  <a
-                    href={txUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline flex items-center gap-1 inline-block"
-                  >
-                    View on XRPL Explorer ↗
-                  </a>
-                ) : (
-                  <div className="text-xs text-muted-foreground">
-                    Copy hash above to view on{" "}
-                    <a
-                      href={`https://testnet.xrpl.org/transactions/`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      XRPL Explorer
-                    </a>
-                  </div>
-                )}
+              <div className="mt-2">
+                <a
+                  href={`${explorerUrl}${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:opacity-80 break-all text-primary"
+                >
+                  View Transaction: {txHash.slice(0, 16)}...
+                </a>
               </div>
             )}
           </div>
