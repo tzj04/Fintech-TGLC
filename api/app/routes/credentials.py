@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, field_validator
 from ..services.credential_service import CredentialService
 import re
@@ -14,8 +15,13 @@ def validate_xrpl_address(address: str) -> str:
 
 class IssueRequest(BaseModel):
     principal_address: str = Field(..., min_length=25, max_length=35)
-    amount: str = Field(default="1000000", pattern=r'^\d+$')
-    currency: str = Field(default="CORRIDOR_ELIGIBLE", min_length=3, max_length=3)
+    amount: str = Field(default="1000000", pattern=r'^\d+(\.\d+)?$') # XRPL regex can be in decimal
+    currency: str = Field(
+        default="CORRIDOR_ELIGIBLE",
+        min_length=3,
+        max_length=40,
+        pattern=r'^[A-Z0-9]+$'
+    )
 
     @field_validator('principal_address')
     @classmethod
@@ -26,7 +32,15 @@ class IssueRequest(BaseModel):
 async def issue_credential(req: IssueRequest):
     try:
         service = CredentialService()
-        result = service.create_trust_set(req.principal_address, req.amount, req.currency)
+        
+        # For concurrency
+        result = await run_in_threadpool(
+            service.submit_trust_set,
+            req.principal_address,
+            req.amount,
+            req.currency
+        )
+        
         return {
             "transaction": result["transaction"],
             "issuer": result["issuer"],
