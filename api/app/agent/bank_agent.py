@@ -71,7 +71,6 @@ class BankAgent(BaseAgent):
 
             # Escrow from bank wallet to borrower
             self.xrpl_client.create_escrow(
-                account=bank_wallet_address,
                 destination=liquidity_request.business_id,
                 amount=liquidity_request.amount,
                 finish_after=finish_after
@@ -79,7 +78,6 @@ class BankAgent(BaseAgent):
 
             # Clawback from borrower to bank if needed
             self.xrpl_client.clawback(
-                account=bank_wallet_address,
                 from_account=liquidity_request.business_id,
                 amount=liquidity_request.amount
             )
