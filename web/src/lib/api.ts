@@ -17,6 +17,8 @@ export interface CredentialIssueResponse {
   transaction: Record<string, any>;
   issuer: string;
   status: string;
+  message?: string;
+  original_currency?: string;
 }
 
 export interface LiquidityRequestResponse {

@@ -11,6 +11,7 @@ import AppIcon from '@/components/AppIcon';
 import { useWallet } from '@/lib/use-wallet';
 import { useEffect } from 'react';
 import { useNavigation } from '@/context/NavigationContext';
+import { LiquidityForm } from '@/components/LiquidityForm';
 
 const MOCK_CREDIT = { score: 720, rating: 'Good', trend: 'up' as const };
 
@@ -78,6 +79,11 @@ export default function BorrowerDashboard() {
             <WalletStatus isConnected={isConnected} address={address} />
           </div>
           <QuickActionsPanel onBrowseLoans={() => router.push('/loan-details')} onMakePayment={() => router.push('/payment-processing')} onViewCredit={() => router.push('/credit-profile')} />
+        </div>
+
+        {/* Request Liquidity */}
+        <div className="mb-6 md:mb-8">
+          <LiquidityForm />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8 mb-6 md:mb-8 lg:mb-12">

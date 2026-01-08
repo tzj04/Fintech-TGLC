@@ -37,6 +37,15 @@ class CredentialService:
 
 
     # =====================
+    # Convert currency code to XRPL format
+    # XRPL requires: 3 uppercase letters OR 40-char hex string
+    # =====================
+    def _format_currency(self, currency: str) -> str:
+        if len(currency) == 3 and currency.isalpha():
+            return currency
+        return currency.encode('ascii').hex().upper().ljust(40, '0')
+
+    # =====================
     # Prepare a TrustSet transaction (unsigned)
     # =====================
     def create_trust_set(self, principal_address: str, amount: str = "1000000", currency: str = "CORRIDOR_ELIGIBLE") -> dict:
@@ -44,16 +53,17 @@ class CredentialService:
         validate_amount(amount)
         validate_currency(currency)
 
+        formatted_currency = self._format_currency(currency)
+        
         tx = TrustSet(
             account=principal_address,
             limit_amount=IssuedCurrencyAmount(
-                currency=currency,
+                currency=formatted_currency,
                 issuer=self.issuer_wallet.classic_address,
                 value=amount
             )
         )
 
-        # Autofill (sequence, fee, lastLedgerSequence)
         prepared_tx = autofill(tx, self.xrpl_client)
         logger.info(f"Prepared TrustSet transaction for {principal_address}")
 
@@ -63,17 +73,20 @@ class CredentialService:
         }
 
     # =====================
-    # Sign and submit TrustSet transaction
+    # Prepare TrustSet transaction for wallet signing
+    # Returns unsigned transaction ready for principal to sign
     # =====================
     def submit_trust_set(self, principal_address: str, amount: str = "1000000", currency: str = "CORRIDOR_ELIGIBLE") -> dict:
         validate_xrpl_address(principal_address)
         validate_amount(amount)
         validate_currency(currency)
 
+        formatted_currency = self._format_currency(currency)
+        
         tx = TrustSet(
             account=principal_address,
             limit_amount=IssuedCurrencyAmount(
-                currency=currency,
+                currency=formatted_currency,
                 issuer=self.issuer_wallet.classic_address,
                 value=amount
             )
@@ -96,14 +109,16 @@ class CredentialService:
                     raise ValueError(f"Principal account {principal_address} does not exist or is not funded. Please fund the account first using the XRPL testnet faucet: https://xrpl.org/xrp-testnet-faucet.html")
             
             prepared_tx = autofill(tx, self.xrpl_client)
-            logger.info(f"Prepared TrustSet transaction for {principal_address}")
+            logger.info(f"Prepared TrustSet transaction for {principal_address} (currency: {formatted_currency})")
             
             tx_dict = prepared_tx.to_dict()
+            
             return {
                 "transaction": tx_dict,
                 "issuer": self.issuer_wallet.classic_address,
                 "status": "prepared",
-                "message": "Transaction prepared successfully. Principal must sign and submit this transaction."
+                "message": "Transaction prepared successfully. Principal must sign and submit this transaction.",
+                "original_currency": currency
             }
         except ValueError:
             raise

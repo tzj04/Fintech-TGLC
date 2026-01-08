@@ -7,6 +7,7 @@ import FilterBar from './components/FilterBar';
 import ActiveLoanRow from './components/ActiveLoanRow';
 import RecentActivityCard from './components/RecentActivityCard';
 import QuickActionButton from './components/QuickActionButton';
+import { CredentialForm } from '@/components/CredentialForm';
 import AppIcon from '@/components/AppIcon';
 import { useWallet } from '@/lib/use-wallet';
 import { useNavigation } from '@/context/NavigationContext';
@@ -77,11 +78,15 @@ export default function AgentDashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8">
           <PortfolioSummaryCard icon="DollarSign" label="Total Portfolio Value" value="$150,000" subValue="Active loans" trend="+12%" trendDirection="up" iconBgColor="bg-primary/10" iconColor="text-primary" />
           <PortfolioSummaryCard icon="Users" label="Active Borrowers" value="24" subValue="Current clients" trend="+3" trendDirection="up" iconBgColor="bg-success/10" iconColor="text-success" />
           <PortfolioSummaryCard icon="TrendingUp" label="Average Interest Rate" value="8.2%" subValue="Portfolio average" iconBgColor="bg-accent/10" iconColor="text-accent" />
           <PortfolioSummaryCard icon="Clock" label="Pending Payments" value="5" subValue="Require attention" trend="+2" trendDirection="up" iconBgColor="bg-warning/10" iconColor="text-warning" />
+        </div>
+
+        <div className="mb-6 md:mb-8">
+          <CredentialForm />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8 mb-6 md:mb-8">

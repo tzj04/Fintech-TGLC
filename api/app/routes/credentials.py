@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 from ..services.credential_service import CredentialService
 from ..utils.validators import validate_xrpl_address
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/credentials", tags=["Credentials"])
@@ -55,9 +56,11 @@ async def issue_credential(req: IssueRequest):
         )
 
         return {
-            "status": "submitted",
+            "status": result.get("status", "prepared"),
             "transaction": result.get("transaction"),
-            "issuer": result.get("issuer")
+            "issuer": result.get("issuer"),
+            "message": result.get("message", "Transaction prepared successfully. Principal must sign and submit this transaction."),
+            "original_currency": result.get("original_currency")
         }
 
     except ValueError as e:

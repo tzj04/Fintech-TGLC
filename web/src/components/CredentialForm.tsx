@@ -12,24 +12,28 @@ interface TransactionDetails {
   status: string;
   message: string;
   txHash?: string;
+  original_currency?: string;
 }
 
 export function CredentialForm() {
-  const { address: connectedAddress, isConnected, signAndSubmit } = useWallet();
-  const [address, setAddress] = useState('');
+  const { address: agentAddress, isConnected } = useWallet();
+  const [borrowerAddress, setBorrowerAddress] = useState('');
   const [amount, setAmount] = useState('1000000');
   const [currency, setCurrency] = useState('CORRIDOR_ELIGIBLE');
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [txDetails, setTxDetails] = useState<TransactionDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const principalAddress = isConnected && connectedAddress ? connectedAddress : address;
     
-    if (!principalAddress) {
-      setError('Please enter a principal address or connect your wallet');
+    if (!borrowerAddress.trim()) {
+      setError('Please enter the borrower\'s XRPL address');
+      return;
+    }
+    
+    if (!/^r[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(borrowerAddress.trim())) {
+      setError('Invalid XRPL address format. Must start with "r" and be 25-34 characters.');
       return;
     }
 
@@ -38,81 +42,50 @@ export function CredentialForm() {
     setError(null);
 
     try {
-      const response = await apiClient.issueCredential(principalAddress, amount, currency);
+      const response = await apiClient.issueCredential(borrowerAddress.trim(), amount, currency);
       setTxDetails({
         transaction: response.transaction,
         issuer: response.issuer,
         status: response.status,
-        message: (response as any).message || 'Transaction prepared successfully'
+        message: response.message || 'Transaction prepared successfully. The borrower must sign and submit this transaction.',
+        original_currency: (response as any).original_currency || currency
       });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to issue credential';
+      const errorMessage = err instanceof Error ? err.message : 'Failed to prepare credential transaction';
       setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSignAndSubmit = async () => {
-    if (!txDetails) {
-      setError('No transaction to sign');
-      return;
-    }
 
-    if (!isConnected || !connectedAddress) {
-      setError('Please connect your wallet first');
-      return;
-    }
-
-    if (connectedAddress !== txDetails.transaction.account) {
-      setError('Connected wallet address does not match transaction account');
-      return;
-    }
-
-    setSubmitting(true);
+  const handleReset = () => {
+    setTxDetails(null);
     setError(null);
-
-    try {
-      const txData = txDetails.transaction;
-      const tx = {
-        TransactionType: 'TrustSet' as const,
-        Account: txData.account,
-        LimitAmount: txData.limit_amount,
-        Fee: txData.fee,
-        Sequence: txData.sequence,
-        LastLedgerSequence: txData.last_ledger_sequence,
-      };
-
-      const result = await signAndSubmit(tx);
-      const hash = result?.response?.data?.hash || result?.hash;
-      
-      if (hash) {
-        setTxDetails({
-          ...txDetails,
-          txHash: hash,
-          status: 'submitted',
-          message: 'Transaction submitted successfully!'
-        });
-      } else {
-        throw new Error('Failed to get transaction hash');
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Failed to sign and submit transaction');
-    } finally {
-      setSubmitting(false);
-    }
+    setLoading(false);
+    setBorrowerAddress('');
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
   };
 
+  const generateShareLink = (transaction: Record<string, any>): string => {
+    const json = JSON.stringify(transaction);
+    // URL-safe base64: replace +/= with -_. for URL compatibility
+    const encoded = btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '.');
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    return `${baseUrl}/sign-credential/${encoded}`;
+  };
+
   const formatCurrency = (curr: string) => {
-    if (curr.length === 3) return curr;
+    if (!curr) return '';
+    if (curr.length === 3 && /^[A-Z]{3}$/.test(curr)) return curr;
     if (curr.length === 40) {
       try {
         const hex = curr.replace(/0+$/, '');
-        return Buffer.from(hex, 'hex').toString('utf8') || curr;
+        const decoded = Buffer.from(hex, 'hex').toString('utf8');
+        return decoded || curr;
       } catch {
         return curr;
       }
@@ -122,27 +95,40 @@ export function CredentialForm() {
 
   return (
     <div className="bg-card rounded-lg border border-border p-6">
-      <h2 className="text-lg font-semibold mb-4 text-foreground">Issue Credential</h2>
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold mb-2 text-foreground">Issue Credential</h2>
+        <div className="text-sm text-muted-foreground space-y-2">
+          <p>
+            <strong>What this does:</strong> Creates a trust line on XRPL that allows a borrower to receive your issued currency (like a credit limit).
+          </p>
+          <p>
+            <strong>Requirements:</strong> The borrower's account must be funded with XRP before they can sign. If the account isn't funded, you'll see an error.
+          </p>
+          <p>
+            <strong>Process:</strong> You prepare the transaction → Share link with borrower → Borrower signs → Trust line created on XRPL.
+          </p>
+        </div>
+      </div>
+      
+      {isConnected && agentAddress && (
+        <div className="mb-4 p-3 bg-muted/30 rounded-md border border-border">
+          <p className="text-xs text-muted-foreground mb-1">Agent Wallet (You)</p>
+          <p className="text-sm font-mono text-foreground">{agentAddress}</p>
+        </div>
+      )}
       
       <form onSubmit={handleSubmit} className="space-y-4">
-        {isConnected && connectedAddress ? (
-          <div className="w-full px-3 py-2 border border-success/30 rounded-md bg-success/10 text-foreground text-sm font-mono flex items-center justify-between">
-            <span>{connectedAddress}</span>
-            <span className="text-xs text-success">✓ Connected</span>
-          </div>
-        ) : (
-          <Input
-            label="Principal Address"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="rXXX..."
-            required={!isConnected}
-            pattern="^r[1-9A-HJ-NP-Za-km-z]{25,34}$"
-            title="Must be a valid XRPL address starting with 'r'"
-            description="Enter address or connect wallet above"
-            className="font-mono"
-          />
-        )}
+        <Input
+          label="Borrower's XRPL Address"
+          value={borrowerAddress}
+          onChange={(e) => setBorrowerAddress(e.target.value)}
+          placeholder="rXXXXXXXXXXXXXXXXXXXXXXXXXX"
+          required
+          pattern="^r[1-9A-HJ-NP-Za-km-z]{25,34}$"
+          title="Must be a valid XRPL address starting with 'r'"
+          description="The borrower's XRPL address. Their account must be funded with XRP before they can sign."
+          className="font-mono"
+        />
 
         <Input
           label="Trust Limit"
@@ -150,7 +136,7 @@ export function CredentialForm() {
           onChange={(e) => setAmount(e.target.value)}
           pattern="^\d+(\.\d+)?$"
           title="Must be a positive number"
-          description="Maximum amount of currency the principal can hold"
+          description="Maximum amount of currency the borrower can hold (e.g., 1000000)"
         />
 
         <Input
@@ -168,19 +154,22 @@ export function CredentialForm() {
         </Button>
 
         {error && (
-          <div className="text-sm text-destructive p-3 bg-destructive/10 rounded-md border border-destructive/20">
-            <p className="font-medium mb-1">Error</p>
-            <p>{error}</p>
-            {error.includes('does not exist') && (
-              <a
-                href="https://xrpl.org/xrp-testnet-faucet.html"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs underline mt-2 inline-block hover:opacity-80"
-              >
-                Fund account on testnet faucet →
-              </a>
-            )}
+          <div className="text-sm text-destructive p-4 bg-destructive/10 rounded-md border border-destructive/20">
+            <p className="font-semibold mb-2">❌ Error</p>
+            <p className="mb-2">{error}</p>
+            {error.includes('does not exist') || error.includes('not funded') ? (
+              <div className="mt-3 pt-3 border-t border-destructive/20">
+                <p className="text-xs mb-2">The borrower's account needs to be funded first:</p>
+                <a
+                  href="https://xrpl.org/xrp-testnet-faucet.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs underline hover:opacity-80 inline-block"
+                >
+                  → Fund account on XRPL Testnet Faucet
+                </a>
+              </div>
+            ) : null}
           </div>
         )}
 
@@ -214,16 +203,25 @@ export function CredentialForm() {
               </div>
 
               <div className="flex justify-between items-center py-2 border-t border-success/20">
-                <span className="text-success/80 font-medium">Principal:</span>
-                <code className="text-success font-mono bg-success/20 px-2 py-1 rounded">
-                  {txDetails.transaction.account?.slice(0, 8)}...{txDetails.transaction.account?.slice(-6)}
-                </code>
+                <span className="text-success/80 font-medium">Borrower Address:</span>
+                <div className="flex items-center gap-2">
+                  <code className="text-success font-mono bg-success/20 px-2 py-1 rounded">
+                    {txDetails.transaction.account?.slice(0, 8)}...{txDetails.transaction.account?.slice(-6)}
+                  </code>
+                  <button
+                    onClick={() => copyToClipboard(txDetails.transaction.account)}
+                    className="text-success hover:text-success/80"
+                    title="Copy address"
+                  >
+                    📋
+                  </button>
+                </div>
               </div>
 
               <div className="flex justify-between items-center py-2 border-t border-success/20">
                 <span className="text-success/80 font-medium">Currency:</span>
                 <code className="text-success font-mono bg-success/20 px-2 py-1 rounded">
-                  {formatCurrency(txDetails.transaction.limit_amount?.currency || currency)}
+                  {txDetails.original_currency || formatCurrency(txDetails.transaction.limit_amount?.currency || currency)}
                 </code>
               </div>
 
@@ -253,55 +251,82 @@ export function CredentialForm() {
                 >
                   View on XRPL Explorer: {txDetails.txHash.slice(0, 16)}...
                 </a>
-              </div>
-            ) : isConnected && connectedAddress === txDetails.transaction.account ? (
-              <div className="mt-4 space-y-2">
                 <Button
-                  onClick={handleSignAndSubmit}
-                  disabled={submitting}
-                  loading={submitting}
-                  variant="success"
+                  onClick={handleReset}
+                  variant="outline"
+                  size="sm"
                   fullWidth
+                  className="mt-3"
                 >
-                  Sign & Submit with Crossmark
+                  Issue Another Credential
                 </Button>
-                <a
-                  href={`https://testnet.xrpl.org/accounts/${txDetails.transaction.account}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs underline text-success hover:opacity-80 block text-center"
-                >
-                  View account on XRPL Explorer →
-                </a>
               </div>
             ) : (
-              <div className="mt-4 p-3 bg-warning/10 border border-warning/20 rounded-md">
-                <p className="text-xs text-warning font-medium mb-2">⚠️ Next Steps:</p>
-                <ol className="text-xs text-warning/80 space-y-1 list-decimal list-inside">
-                  <li>Connect wallet matching this address</li>
-                  <li>Sign and submit transaction</li>
-                  <li>Verify on XRPL explorer</li>
-                </ol>
-                <a
-                  href={`https://testnet.xrpl.org/accounts/${txDetails.transaction.account}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs underline mt-2 inline-block text-warning hover:opacity-80"
-                >
-                  View account on XRPL Explorer →
-                </a>
+              <div className="mt-4 space-y-3">
+                <div className="p-4 bg-primary/10 border border-primary/20 rounded-md">
+                  <p className="text-sm font-semibold text-primary mb-2">📋 Share Link with Borrower</p>
+                  <p className="text-xs text-primary/80 mb-3">
+                    Copy this link and send it to the borrower via email, chat, or any secure channel. When they open it, they'll be prompted to connect their wallet and sign.
+                  </p>
+                  <p className="text-xs text-primary/60 mb-3">
+                    <strong>Note:</strong> Make sure the borrower's account is funded with XRP before they try to sign, otherwise they'll see an error.
+                  </p>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={generateShareLink(txDetails.transaction)}
+                      className="flex-1 px-3 py-2 text-xs bg-background border border-border rounded-md font-mono"
+                    />
+                    <Button
+                      onClick={() => {
+                        copyToClipboard(generateShareLink(txDetails.transaction));
+                        alert('Link copied! Send this to the borrower.');
+                      }}
+                      size="sm"
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                  <a
+                    href={generateShareLink(txDetails.transaction)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs underline text-primary hover:opacity-80"
+                  >
+                    Open link in new tab →
+                  </a>
+                </div>
+
+                <div className="p-3 bg-muted/30 border border-border rounded-md">
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Borrower's address:</strong>{' '}
+                    <code className="bg-muted px-1 rounded font-mono">
+                      {txDetails.transaction.account}
+                    </code>
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleReset}
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                  >
+                    Issue Another
+                  </Button>
+                  <a
+                    href={`https://testnet.xrpl.org/accounts/${txDetails.transaction.account}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs underline text-muted-foreground hover:opacity-80 flex-1 text-center self-center"
+                  >
+                    View on XRPL →
+                  </a>
+                </div>
               </div>
             )}
-
-            <Button
-              onClick={() => copyToClipboard(JSON.stringify(txDetails.transaction, null, 2))}
-              variant="outline"
-              size="sm"
-              fullWidth
-              className="mt-3"
-            >
-              📋 Copy Transaction JSON
-            </Button>
           </div>
         )}
       </form>
