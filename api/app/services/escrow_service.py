@@ -1,19 +1,15 @@
 # /api/app/services/escrow_service.py
 
 from typing import Optional
-from decimal import Decimal
 import logging
-import re
 
 from xrpl.models.transactions import EscrowCreate, EscrowFinish, EscrowCancel
 from xrpl.utils import xrp_to_drops
 from xrpl.transaction import submit_and_wait
 from .xrpl_client import XRPLClient
 from xrpl.wallet import Wallet
+from ..utils.validators import validate_xrpl_address, validate_xrp_amount, validate_condition, validate_fulfillment
 
-# =====================
-# Logging
-# =====================
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -23,42 +19,13 @@ class EscrowService:
         self.xrpl_client = XRPLClient().client
 
     # =====================
-    # Validation helpers
-    # =====================
-    @staticmethod
-    def validate_address(address: str):
-        if not isinstance(address, str) or not address.startswith("r") or len(address) < 25:
-            raise ValueError(f"Invalid XRPL address: {address}")
-
-    @staticmethod
-    def validate_amount(amount_xrp: float):
-        try:
-            val = Decimal(amount_xrp)
-            if val <= 0:
-                raise ValueError
-        except:
-            raise ValueError(f"Invalid XRP amount: {amount_xrp}")
-
-    @staticmethod
-    def validate_condition(condition: Optional[str]):
-        if condition:
-            if not re.fullmatch(r"[A-Fa-f0-9]{64,}", condition):
-                raise ValueError(f"Invalid cryptographic condition (hex): {condition}")
-
-    @staticmethod
-    def validate_fulfillment(fulfillment: Optional[str]):
-        if fulfillment:
-            if not re.fullmatch(r"[A-Fa-f0-9]+", fulfillment):
-                raise ValueError(f"Invalid fulfillment (hex): {fulfillment}")
-
-    # =====================
     # EscrowCreate
     # =====================
     def create_escrow(self, from_wallet: Wallet, to_address: str, amount_xrp: float, condition: Optional[str] = None) -> EscrowCreate:
-        self.validate_address(from_wallet.classic_address)
-        self.validate_address(to_address)
-        self.validate_amount(amount_xrp)
-        self.validate_condition(condition)
+        validate_xrpl_address(from_wallet.classic_address)
+        validate_xrpl_address(to_address)
+        validate_xrp_amount(amount_xrp)
+        validate_condition(condition)
 
         tx = EscrowCreate(
             account=from_wallet.classic_address,
@@ -83,7 +50,7 @@ class EscrowService:
     # EscrowFinish
     # =====================
     def finish_escrow(self, owner_wallet: Wallet, offer_sequence: int, fulfillment: Optional[str] = None) -> EscrowFinish:
-        self.validate_fulfillment(fulfillment)
+        validate_fulfillment(fulfillment)
         tx = EscrowFinish(
             account=owner_wallet.classic_address,
             owner=owner_wallet.classic_address,

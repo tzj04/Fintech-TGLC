@@ -78,11 +78,11 @@ class APIClient {
     if (!validateXrplAddress(principalAddress)) {
       throw new Error('Invalid XRPL address format');
     }
-    if (!/^\d+$/.test(amount)) {
-      throw new Error('Amount must be a positive integer');
+    if (!/^\d+(\.\d+)?$/.test(amount)) {
+      throw new Error('Amount must be a positive number');
     }
-    if (currency.length !== 3) {
-      throw new Error('Currency must be 3 characters');
+    if (currency.length < 3 || currency.length > 40 || !/^[A-Z0-9]+$/.test(currency)) {
+      throw new Error('Currency must be 3-40 uppercase alphanumeric characters');
     }
     return this.request<CredentialIssueResponse>('/credentials/issue', {
       method: 'POST',

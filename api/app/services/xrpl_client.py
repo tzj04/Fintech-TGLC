@@ -73,8 +73,7 @@ class XRPLClient:
         if not seed:
             raise RuntimeError("ISSUER_SEED is not set in environment")
 
-        # sequence=0 lets xrpl-py auto-fetch the correct sequence
-        self._wallet = Wallet(seed=seed, sequence=0)
+        self._wallet = Wallet.from_seed(seed)
 
         self._network = network
 
