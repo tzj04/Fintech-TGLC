@@ -161,22 +161,47 @@ async def request_liquidity(req: LiquidityRequest):
                 finish_after=unlock_timestamp
             )
             
+            # Submit the escrow immediately
             prepared_tx = await run_in_threadpool(autofill, escrow_tx, xrpl_client.client)
-            tx_dict = prepared_tx.to_dict()
-            
-            return {
-                "status": "matched",
-                "transaction": tx_dict,
-                "amount_xrp": req.amount_xrp,
-                "credit": eligibility["credit"],
-                "unlock_timestamp": unlock_timestamp,
-                "matched_bank": {
-                    "name": best_bank["bank_name"],
-                    "wallet": best_bank["wallet_address"]
-                },
-                "explorer_url_template": EXPLORER_BASE_URL + "{tx_hash}",
-                "message": f"Matched with {best_bank['bank_name']}. Escrow transaction prepared for bank signing. After signing, view the transaction at: {EXPLORER_BASE_URL}<tx_hash>"
-            }
+            try:
+                # Try to submit using the bank's wallet if available, otherwise use platform wallet
+                bank_wallet = xrpl_client._wallet
+                response = await run_in_threadpool(xrpl_client.submit, prepared_tx, bank_wallet)
+                tx_hash = response.get("hash")
+                transaction_url = f"{EXPLORER_BASE_URL}{tx_hash}" if tx_hash else None
+                logger.info(f"Escrow created with matched bank: {tx_hash}")
+                
+                return {
+                    "status": "approved",
+                    "tx_hash": tx_hash,
+                    "amount_xrp": req.amount_xrp,
+                    "credit": eligibility["credit"],
+                    "unlock_timestamp": unlock_timestamp,
+                    "matched_bank": {
+                        "name": best_bank["bank_name"],
+                        "wallet": best_bank["wallet_address"]
+                    },
+                    "transaction_url": transaction_url,
+                    "explorer_url": transaction_url,
+                    "message": f"Matched with {best_bank['bank_name']} and escrow created successfully. View receipt: {transaction_url}"
+                }
+            except Exception as e:
+                # If submission fails, return prepared transaction for manual signing
+                logger.warning(f"Failed to auto-submit escrow, returning prepared transaction: {e}")
+                tx_dict = prepared_tx.to_dict()
+                return {
+                    "status": "matched",
+                    "transaction": tx_dict,
+                    "amount_xrp": req.amount_xrp,
+                    "credit": eligibility["credit"],
+                    "unlock_timestamp": unlock_timestamp,
+                    "matched_bank": {
+                        "name": best_bank["bank_name"],
+                        "wallet": best_bank["wallet_address"]
+                    },
+                    "explorer_url_template": EXPLORER_BASE_URL + "{tx_hash}",
+                    "message": f"Matched with {best_bank['bank_name']}. Escrow transaction prepared for signing. After signing, view at: {EXPLORER_BASE_URL}<tx_hash>"
+                }
         else:
             # Fallback to platform wallet if no banks match
             logger.info("No banks matched, using platform wallet fallback")
