@@ -14,6 +14,7 @@ from ..services.xrpl_client import XRPLClient
 from ..services.policy_engine import PolicyEngine
 from ..models.proof import ProofPayload as ProofPayloadModel
 from ..models.exposure_state import ExposureState
+from ..models.policy import CreditPolicy
 from ..agent.bank_agent import BankAgent
 from ..utils.validators import validate_xrpl_address
 
@@ -160,8 +161,23 @@ async def request_liquidity(req: LiquidityRequest):
             try:
                 # Create BankAgent with necessary dependencies
                 proof_verifier = ProofVerifier()
-                policy_engine = PolicyEngine()
-                exposure_state = ExposureState()
+                
+                # Create default policy for the matched bank
+                bank_policy = best_bank.get("credit_policy", {})
+                policy = CreditPolicy(
+                    max_duration_days=DEFAULT_ESCROW_DAYS,
+                    max_default_rate=0.1,
+                    max_cumulative_exposure=bank_policy.get("max", 100000)
+                )
+                policy_engine = PolicyEngine(policy)
+                
+                # Create exposure state for the borrower
+                exposure_state = ExposureState(
+                    business_id=req.principal_address,
+                    bank_id=best_bank["bank_id"],
+                    current_exposure=0.0
+                )
+                
                 bank_agent = BankAgent(
                     proof_verifier=proof_verifier,
                     policy_engine=policy_engine,
